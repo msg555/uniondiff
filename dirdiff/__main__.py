@@ -74,6 +74,8 @@ def setup_logging(verbose: int) -> None:
 
 
 def main() -> int:
+    os.umask(0)
+
     args = parse_args()
     setup_logging(args.verbose)
 
