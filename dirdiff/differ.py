@@ -75,30 +75,30 @@ class DifferOptions:
 class Differ:
     def __init__(
         self,
-        upper_path,
         merged_path,
+        lower_path,
         output: DiffOutput,
         *,
         options: Optional[DifferOptions] = None,
     ) -> None:
-        self.upper_path = upper_path
         self.merged_path = merged_path
+        self.lower_path = lower_path
         self.output = output
         self.options = options or DifferOptions()
         self._dir_pending: List[Tuple[str, os.stat_result]] = []
 
     def diff(self) -> None:
-        with DirectoryManager(self.upper_path) as upper:
-            with DirectoryManager(self.merged_path) as merged:
-                self._diff_dirs(".", upper, merged)
+        with DirectoryManager(self.merged_path) as merged:
+            with DirectoryManager(self.lower_path) as lower:
+                self._diff_dirs(".", merged, lower)
 
     def _diff_dirs(
         self,
         archive_path: str,
-        upper: DirectoryManager,
         merged: DirectoryManager,
+        lower: DirectoryManager,
     ) -> None:
-        upper_map = {dir_entry.name: _dir_entry_type(dir_entry) for dir_entry in upper}
+        lower_map = {dir_entry.name: _dir_entry_type(dir_entry) for dir_entry in lower}
 
         # If stats differ write dir now. Otherwise wait until we find an actual
         # difference underneath this directory. Note that a directory should be
@@ -106,43 +106,43 @@ class Differ:
         # be written *before* that child. Therefore we push it to `_dir_pending`
         # which must be flushed before anything else can be written.
         self._dir_pending.append((archive_path, merged.stat))
-        if self.options.stats_differ(upper.stat, merged.stat):
+        if self.options.stats_differ(merged.stat, lower.stat):
             self._flush_pending()
 
         for dir_entry in merged:
             dir_entry_type = _dir_entry_type(dir_entry)
             cpath = os.path.join(archive_path, dir_entry.name)
 
-            upper_type = upper_map.pop(dir_entry.name, None)
+            lower_type = lower_map.pop(dir_entry.name, None)
             if dir_entry_type == DirEntryType.DIRECTORY:
                 with merged.child_dir(dir_entry.name) as merged_cdir:
-                    if upper_type != DirEntryType.DIRECTORY:
+                    if lower_type != DirEntryType.DIRECTORY:
                         self._insert_dir(cpath, merged_cdir)
                         continue
 
-                    with upper.child_dir(dir_entry.name) as upper_cdir:
-                        self._diff_dirs(cpath, upper_cdir, merged_cdir)
+                    with lower.child_dir(dir_entry.name) as lower_cdir:
+                        self._diff_dirs(cpath, merged_cdir, lower_cdir)
                         continue
 
             if dir_entry_type == DirEntryType.REGULAR_FILE:
                 with merged.child_file(dir_entry.name) as merged_cfile:
-                    if upper_type != DirEntryType.REGULAR_FILE:
+                    if lower_type != DirEntryType.REGULAR_FILE:
                         self._insert_file(cpath, merged_cfile)
                         continue
 
-                    with upper.child_file(dir_entry.name) as upper_cfile:
-                        self._diff_files(cpath, upper_cfile, merged_cfile)
+                    with lower.child_file(dir_entry.name) as lower_cfile:
+                        self._diff_files(cpath, merged_cfile, lower_cfile)
                         continue
 
             with merged.child_path(dir_entry.name) as merged_cpath:
-                if upper_type != DirEntryType.OTHER:
+                if lower_type != DirEntryType.OTHER:
                     self._insert_other(cpath, merged_cpath)
                     continue
 
-                with upper.child_path(dir_entry.name) as upper_cpath:
-                    self._diff_other(cpath, upper_cpath, merged_cpath)
+                with lower.child_path(dir_entry.name) as lower_cpath:
+                    self._diff_other(cpath, merged_cpath, lower_cpath)
 
-        for name in upper_map:
+        for name in lower_map:
             self._flush_pending()
             self.output.delete_marker(os.path.join(archive_path, name))
 
@@ -154,24 +154,24 @@ class Differ:
     def _diff_files(
         self,
         archive_path: str,
-        upper: FileManager,
         merged: FileManager,
+        lower: FileManager,
     ) -> None:
-        if self.options.stats_differ(upper.stat, merged.stat):
+        if self.options.stats_differ(merged.stat, lower.stat):
             self._insert_file(archive_path, merged)
             return
 
         CHUNK_SIZE = 2**16
         differs = False
-        with upper.reader() as upper_reader:
-            with merged.reader() as merged_reader:
+        with merged.reader() as merged_reader:
+            with lower.reader() as lower_reader:
                 while True:
-                    upper_data = upper_reader.read(CHUNK_SIZE)
                     merged_data = merged_reader.read(CHUNK_SIZE)
-                    if upper_data != merged_data:
+                    lower_data = lower_reader.read(CHUNK_SIZE)
+                    if merged_data != lower_data:
                         differs = True
                         break
-                    if not upper_data:
+                    if not merged_data:
                         break
 
         if differs:
@@ -180,13 +180,13 @@ class Differ:
     def _diff_other(
         self,
         archive_path: str,
-        upper: PathManager,
         merged: PathManager,
+        lower: PathManager,
     ) -> None:
-        if not self.options.stats_differ(upper.stat, merged.stat):
+        if not self.options.stats_differ(merged.stat, lower.stat):
             if not stat.S_ISLNK(merged.stat.st_mode):
                 return
-            if upper.linkname == merged.linkname:
+            if merged.linkname == lower.linkname:
                 return
         self._insert_other(archive_path, merged)
 
