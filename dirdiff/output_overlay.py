@@ -16,17 +16,17 @@ class DiffOutputOverlay(DiffOutputForwarding):
         self.backend.write_other(
             path,
             StatInfo(
-                st_mode=stat.S_IFCHR | 0o444,
-                st_uid=self.whiteout_uid,
-                st_gid=self.whiteout_gid,
-                st_size=0,
-                st_mtime=0,
-                st_rdev=0,
+                mode=stat.S_IFCHR | 0o444,
+                uid=self.whiteout_uid,
+                gid=self.whiteout_gid,
+                size=0,
+                mtime=0,
+                rdev=0,
             ),
         )
 
     def write_other(self, path: str, st: StatInfo) -> None:
-        if stat.S_ISCHR(st.st_mode) and st.st_rdev == 0:
+        if stat.S_ISCHR(st.mode) and st.rdev == 0:
             LOGGER.warning(
                 "Refusing to write spurious whiteout character device at %s", path
             )

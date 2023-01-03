@@ -1,3 +1,4 @@
+import dataclasses
 import functools
 import os
 from typing import Any, AnyStr, Iterator, Optional
@@ -7,6 +8,16 @@ def _encode(s: AnyStr) -> str:
     if isinstance(s, bytes):
         return os.fsdecode(s)
     return str(s)
+
+
+@dataclasses.dataclass(frozen=True)
+class StatInfo:
+    mode: int
+    uid: int
+    gid: int
+    size: int
+    mtime: int
+    rdev: int
 
 
 class ManagerBase:
@@ -19,10 +30,21 @@ class ManagerBase:
         self.fd = -1
 
     @functools.cached_property
-    def stat(self) -> os.stat_result:
+    def stat(self) -> StatInfo:
+        st: os.stat_result
         if self.fd == -1:
-            return os.lstat(self.path, dir_fd=self.dir_fd)
-        return os.fstat(self.fd)
+            st = os.lstat(self.path, dir_fd=self.dir_fd)
+        else:
+            st = os.fstat(self.fd)
+
+        return StatInfo(
+            mode=st.st_mode,
+            uid=st.st_uid,
+            gid=st.st_gid,
+            size=st.st_size,
+            mtime=int(st.st_mtime),
+            rdev=getattr(st, "st_rdev", 0),  # Unix only
+        )
 
     def _open(self) -> None:
         if not self.SUPPORTS_DIR_FD:

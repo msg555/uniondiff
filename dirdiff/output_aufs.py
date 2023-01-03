@@ -25,12 +25,12 @@ class DiffOutputAufs(DiffOutputForwarding):
         self.backend.write_file(
             os.path.join(head, self.WHITEOUT_PREFIX + tail),
             StatInfo(
-                st_mode=stat.S_IFREG | 0o444,
-                st_uid=self.whiteout_uid,
-                st_gid=self.whiteout_gid,
-                st_size=0,
-                st_mtime=0,
-                st_rdev=0,
+                mode=stat.S_IFREG | 0o444,
+                uid=self.whiteout_uid,
+                gid=self.whiteout_gid,
+                size=0,
+                mtime=0,
+                rdev=0,
             ),
             io.BytesIO(b""),
         )

@@ -20,21 +20,21 @@ class OutputBackendFile(OutputBackend):
         if self.ignore_owners:
             return
         if fd == -1:
-            os.lchown(path, st.st_uid, st.st_gid)
+            os.lchown(path, st.uid, st.gid)
         else:
-            os.fchown(fd, st.st_uid, st.st_gid)
+            os.fchown(fd, st.uid, st.gid)
 
     def write_dir(self, path: str, st: StatInfo) -> None:
         full_path = self._full_path(path)
         os.mkdir(
             full_path,
-            mode=stat.S_IMODE(st.st_mode),
+            mode=stat.S_IMODE(st.mode),
         )
         self._fixup_owners(path, st)
 
     def write_file(self, path: str, st: StatInfo, reader) -> None:
         full_path = self._full_path(path)
-        fd = os.open(full_path, os.O_WRONLY | os.O_CREAT, mode=stat.S_IMODE(st.st_mode))
+        fd = os.open(full_path, os.O_WRONLY | os.O_CREAT, mode=stat.S_IMODE(st.mode))
         with os.fdopen(fd, "wb") as fout:
             while data := reader.read():
                 fout.write(data)
@@ -47,17 +47,17 @@ class OutputBackendFile(OutputBackend):
 
     def write_other(self, path: str, st: StatInfo) -> None:
         full_path = self._full_path(path)
-        if stat.S_IFMT(st.st_mode) in (stat.S_IFCHR, stat.S_IFBLK, stat.S_IFIFO):
+        if stat.S_IFMT(st.mode) in (stat.S_IFCHR, stat.S_IFBLK, stat.S_IFIFO):
             try:
-                os.mknod(full_path, mode=st.st_mode, device=st.st_rdev)
+                os.mknod(full_path, mode=st.mode, device=st.rdev)
             except PermissionError as err:
                 LOGGER.warning("Failed to create device file: %s", err)
                 return
-        elif stat.S_ISSOCK(st.st_mode):
+        elif stat.S_ISSOCK(st.mode):
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
             sock.bind(full_path)
             sock.close()
-            os.chmod(full_path, stat.S_IMODE(st.st_mode))
+            os.chmod(full_path, stat.S_IMODE(st.mode))
         else:
             LOGGER.warning("Ignoring %s: unknown file type", path)
 

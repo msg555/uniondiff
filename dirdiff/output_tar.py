@@ -16,13 +16,13 @@ class OutputBackendTarfile(OutputBackend):
 
     def _get_tar_info(self, name: str, st: StatInfo) -> TarInfo:
         ti = TarInfo(os.path.join(self.archive_root, name))
-        ti.mode = stat.S_IMODE(st.st_mode)
-        ti.mtime = st.st_mtime
-        ti.uid = st.st_uid
-        ti.gid = st.st_gid
-        if stat.S_ISBLK(st.st_mode) or stat.S_ISCHR(st.st_mode):
-            ti.devmajor = os.major(st.st_rdev)
-            ti.devminor = os.minor(st.st_rdev)
+        ti.mode = stat.S_IMODE(st.mode)
+        ti.mtime = st.mtime
+        ti.uid = st.uid
+        ti.gid = st.gid
+        if stat.S_ISBLK(st.mode) or stat.S_ISCHR(st.mode):
+            ti.devmajor = os.major(st.rdev)
+            ti.devminor = os.minor(st.rdev)
 
         return ti
 
@@ -34,7 +34,7 @@ class OutputBackendTarfile(OutputBackend):
     def write_file(self, path: str, st: StatInfo, reader) -> None:
         ti = self._get_tar_info(path, st)
         ti.type = tarfile.REGTYPE
-        ti.size = st.st_size
+        ti.size = st.size
         self.tf.addfile(ti, reader)
 
     def write_symlink(self, path: str, st: StatInfo, linkname: str) -> None:
@@ -45,15 +45,15 @@ class OutputBackendTarfile(OutputBackend):
 
     def write_other(self, path: str, st: StatInfo) -> None:
         ti = self._get_tar_info(path, st)
-        if stat.S_ISSOCK(st.st_mode):
+        if stat.S_ISSOCK(st.mode):
             # Sockets are not supported in tar format
             LOGGER.warning("Converting socket %s to fifo", path)
             ti.type = tarfile.FIFOTYPE
-        elif stat.S_ISBLK(st.st_mode):
+        elif stat.S_ISBLK(st.mode):
             ti.type = tarfile.BLKTYPE
-        elif stat.S_ISCHR(st.st_mode):
+        elif stat.S_ISCHR(st.mode):
             ti.type = tarfile.CHRTYPE
-        elif stat.S_ISFIFO(st.st_mode):
+        elif stat.S_ISFIFO(st.mode):
             ti.type = tarfile.FIFOTYPE
         else:
             LOGGER.warning("Ignoring %s: unknown file type", path)

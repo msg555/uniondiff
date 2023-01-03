@@ -2,13 +2,17 @@ import dataclasses
 import logging
 import os
 import stat
+import tarfile
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from dirdiff.filelib import DirectoryManager, FileManager, PathManager
+from dirdiff.filelib_tar import TarDirectoryManager, TarFileLoader
 from dirdiff.output import DiffOutput, StatInfo
 
 LOGGER = logging.getLogger(__name__)
+
+DifferPathLike = Union[str, bytes, os.PathLike, tarfile.TarFile]
 
 
 class DirEntryType(Enum):
@@ -31,21 +35,19 @@ class DifferOptions:
     output_gid: Optional[int] = None
     scrub_mtime: Optional[bool] = True
 
-    def stats_filter(self, x: os.stat_result) -> StatInfo:
+    def stats_filter(self, x: StatInfo) -> StatInfo:
         """
-        Return a copy of the stat_result object that has been adjusted based
+        Return a copy of the StatInfo object that has been adjusted based
         on the options set.
         """
-        return StatInfo(
-            st_mode=x.st_mode,
-            st_uid=self.output_uid if self.output_uid is not None else x.st_uid,
-            st_gid=self.output_gid if self.output_gid is not None else x.st_gid,
-            st_size=x.st_size,
-            st_mtime=0 if self.scrub_mtime else int(x.st_mtime),
-            st_rdev=x.st_rdev,
+        return dataclasses.replace(
+            x,
+            uid=self.output_uid if self.output_uid is not None else x.uid,
+            gid=self.output_gid if self.output_gid is not None else x.gid,
+            mtime=0 if self.scrub_mtime else x.mtime,
         )
 
-    def stats_differ(self, st_x: os.stat_result, st_y: os.stat_result) -> bool:
+    def stats_differ(self, x: StatInfo, y: StatInfo) -> bool:
         """
         Returns True if the data in the stat results are the same for the purposes
         of performing a diff. This takes into account the configuraiton options
@@ -55,41 +57,47 @@ class DifferOptions:
         for some file types. In particular symlinks and regular files contents
         should be inspected as well.
         """
-        x = self.stats_filter(st_x)
-        y = self.stats_filter(st_y)
-        if x.st_uid != y.st_uid:
+        x = self.stats_filter(x)
+        y = self.stats_filter(y)
+        if x.uid != y.uid:
             return True
-        if x.st_gid != y.st_gid:
+        if x.gid != y.gid:
             return True
-        if x.st_mode != y.st_mode:
+        if x.mode != y.mode:
             return True
-        if stat.S_ISREG(x.st_mode) or stat.S_ISLNK(x.st_mode):
-            if x.st_size != y.st_size:
+        if stat.S_ISREG(x.mode) or stat.S_ISLNK(x.mode):
+            if x.size != y.size:
                 return True
-        if stat.S_ISCHR(x.st_mode) or stat.S_ISBLK(x.st_mode):
-            if x.st_rdev != y.st_rdev:
+        if stat.S_ISCHR(x.mode) or stat.S_ISBLK(x.mode):
+            if x.rdev != y.rdev:
                 return True
         return False
+
+
+def _open_dir(path_dir: DifferPathLike) -> DirectoryManager:
+    if isinstance(path_dir, tarfile.TarFile):
+        return TarDirectoryManager(TarFileLoader(path_dir), os.path.sep)  # type: ignore
+    return DirectoryManager(path_dir)
 
 
 class Differ:
     def __init__(
         self,
-        merged_path,
-        lower_path,
+        merged_dir: DifferPathLike,
+        lower_dir: DifferPathLike,
         output: DiffOutput,
         *,
         options: Optional[DifferOptions] = None,
     ) -> None:
-        self.merged_path = merged_path
-        self.lower_path = lower_path
+        self.merged_dir = merged_dir
+        self.lower_dir = lower_dir
         self.output = output
         self.options = options or DifferOptions()
-        self._dir_pending: List[Tuple[str, os.stat_result]] = []
+        self._dir_pending: List[Tuple[str, StatInfo]] = []
 
     def diff(self) -> None:
-        with DirectoryManager(self.merged_path) as merged:
-            with DirectoryManager(self.lower_path) as lower:
+        with _open_dir(self.merged_dir) as merged:
+            with _open_dir(self.lower_dir) as lower:
                 self._diff_dirs(".", merged, lower)
 
     def _diff_dirs(
@@ -98,6 +106,7 @@ class Differ:
         merged: DirectoryManager,
         lower: DirectoryManager,
     ) -> None:
+        LOGGER.debug("Diffing dirs %s", archive_path)
         lower_map = {dir_entry.name: _dir_entry_type(dir_entry) for dir_entry in lower}
 
         # If stats differ write dir now. Otherwise wait until we find an actual
@@ -157,6 +166,7 @@ class Differ:
         merged: FileManager,
         lower: FileManager,
     ) -> None:
+        LOGGER.debug("Diffing files %s", archive_path)
         if self.options.stats_differ(merged.stat, lower.stat):
             self._insert_file(archive_path, merged)
             return
@@ -183,8 +193,9 @@ class Differ:
         merged: PathManager,
         lower: PathManager,
     ) -> None:
+        LOGGER.debug("Diffing other %s", archive_path)
         if not self.options.stats_differ(merged.stat, lower.stat):
-            if not stat.S_ISLNK(merged.stat.st_mode):
+            if not stat.S_ISLNK(merged.stat.mode):
                 return
             if merged.linkname == lower.linkname:
                 return
@@ -192,6 +203,7 @@ class Differ:
 
     def _flush_pending(self) -> None:
         for archive_path, dir_stat in self._dir_pending:
+            LOGGER.debug("Inserting directory metadata %s", archive_path)
             self.output.write_dir(archive_path, self.options.stats_filter(dir_stat))
         self._dir_pending.clear()
 
@@ -201,6 +213,7 @@ class Differ:
         obj: DirectoryManager,
     ) -> None:
         self._flush_pending()
+        LOGGER.debug("Recursively inserting directory %s", archive_path)
         self.output.write_dir(archive_path, self.options.stats_filter(obj.stat))
 
         for dir_entry in obj:
@@ -221,6 +234,7 @@ class Differ:
         obj: FileManager,
     ) -> None:
         self._flush_pending()
+        LOGGER.debug("Inserting file %s", archive_path)
         with obj.reader() as reader:
             self.output.write_file(
                 archive_path, self.options.stats_filter(obj.stat), reader
@@ -232,7 +246,8 @@ class Differ:
         obj: PathManager,
     ) -> None:
         self._flush_pending()
-        if stat.S_ISLNK(obj.stat.st_mode):
+        LOGGER.debug("Inserting other %s", archive_path)
+        if stat.S_ISLNK(obj.stat.mode):
             self.output.write_symlink(
                 archive_path, self.options.stats_filter(obj.stat), obj.linkname
             )

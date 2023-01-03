@@ -1,18 +1,9 @@
 import abc
-import dataclasses
 import logging
 
+from dirdiff.filelib import StatInfo
+
 LOGGER = logging.getLogger(__name__)
-
-
-@dataclasses.dataclass
-class StatInfo:
-    st_mode: int
-    st_uid: int
-    st_gid: int
-    st_size: int
-    st_mtime: int
-    st_rdev: int
 
 
 class OutputBackend(metaclass=abc.ABCMeta):
