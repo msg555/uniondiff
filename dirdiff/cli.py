@@ -6,15 +6,15 @@ import tarfile
 from contextlib import ExitStack
 from typing import Union
 
-from dirdiff.differ import Differ
-from dirdiff.output import OutputBackend
+from dirdiff.differ import Differ, DifferOptions
+from dirdiff.exceptions import DirDiffException
+from dirdiff.output import DiffOutput, DiffOutputDryRun, OutputBackend
 from dirdiff.output_aufs import DiffOutputAufs
 from dirdiff.output_file import OutputBackendFile
 from dirdiff.output_overlay import DiffOutputOverlay
 from dirdiff.output_tar import OutputBackendTarfile
 
 LOGGER = logging.getLogger(__name__)
-GZIP_MAGIC_HEADER = "\x1f\x8b"
 
 DIFF_CLASSES = {
     "overlay": DiffOutputOverlay,
@@ -48,13 +48,13 @@ def parse_args():
     parser.add_argument(
         "--merged-input-type",
         default=None,
-        choices=("file", "tar", "tgz"),
+        choices=("file", "tar"),
         help="Type of archive to interpret merged path as",
     )
     parser.add_argument(
         "--lower-input-type",
         default=None,
-        choices=("file", "tar", "tgz"),
+        choices=("file", "tar"),
         help="Type of archive to interpret lower path as",
     )
     parser.add_argument(
@@ -64,24 +64,45 @@ def parse_args():
         help="Output path or directory. Defaults to stdout for tar archives",
     )
     parser.add_argument(
-        "--verbose",
         "-v",
+        "--verbose",
         action="count",
         default=0,
     )
     parser.add_argument(
-        "--strict",
-        action="store_const",
-        default=False,
-        const=True,
-        help="Fail if there are any issues generating output",
+        "-q",
+        "--quiet",
+        action="count",
+        default=0,
     )
     parser.add_argument(
-        "--skip-errors",
+        "-f",
+        "--force",
         action="store_const",
         default=False,
         const=True,
-        help="Ignore most output errors and just do as much as possible",
+        help="Allow write to TTY or existing path",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_const",
+        default=False,
+        const=True,
+        help="Just print out what files would be written or deleted in the diff",
+    )
+    parser.add_argument(
+        "--input-best-effort",
+        action="store_const",
+        default=False,
+        const=True,
+        help="Ignore input errors from merged and lower operands as much as possible",
+    )
+    parser.add_argument(
+        "--output-best-effort",
+        action="store_const",
+        default=False,
+        const=True,
+        help="Ignore output errors as much as possible",
     )
     return parser.parse_args()
 
@@ -109,58 +130,73 @@ def setup_logging(verbose: int) -> None:
 def _get_input_dir(
     stack: ExitStack, path: str, input_type: str
 ) -> Union[str, tarfile.TarFile]:
-    if not input_type:
-        if os.path.isdir(path):
-            input_type = "file"
-        else:
-            with open(path, "rb") as fdata:
-                magic = fdata.read(len(GZIP_MAGIC_HEADER))
-            input_type = "tgz" if magic == GZIP_MAGIC_HEADER else "tar"
-
+    if not input_type and os.path.isdir(path):
+        input_type = "file"
     if input_type == "file":
         return path
-    tar_mode = "r:gz" if input_type == "tgz" else "r"
-    return stack.enter_context(tarfile.open(path, mode=tar_mode))
+
+    try:
+        return stack.enter_context(tarfile.open(path, mode="r"))
+    except FileNotFoundError as exc:
+        raise DirDiffException(f"Input path {repr(path)} does not exist") from exc
+    except (OSError, tarfile.TarError) as exc:
+        raise DirDiffException(
+            f"Failed to open input file {repr(path)}: {exc}"
+        ) from exc
+
+
+def _get_backend(
+    stack: ExitStack, output_type: str, output: str, force: bool
+) -> OutputBackend:
+    # pylint: disable=consider-using-with
+    if output_type in ("tar", "tgz"):
+        tar_mode = "w|gz" if output_type == "tgz" else "w|"
+        if output:
+            tf = stack.enter_context(tarfile.open(output, mode=tar_mode))
+        else:
+            if not force and sys.stdout.isatty():
+                raise DirDiffException("Refusing to write tar file to terminal")
+            tf = stack.enter_context(
+                tarfile.open(mode=tar_mode, fileobj=sys.stdout.buffer)
+            )
+        return OutputBackendTarfile(tf)
+
+    assert output_type == "file"
+
+    if not output:
+        raise DirDiffException(
+            "--output file path must be provided with 'file' output type"
+        )
+
+    if not force and os.path.exists(output):
+        raise DirDiffException("output path already exists")
+
+    os.umask(0)
+    return OutputBackendFile(output)
 
 
 def main() -> int:
     args = parse_args()
-    setup_logging(args.verbose)
+    setup_logging(1 + args.verbose - args.quiet)
 
     with ExitStack() as stack:
-        backend: OutputBackend
-        if args.output_type in ("tar", "tgz"):
-            tar_mode = "w|gz" if args.output_type == "tgz" else "w|"
-            if args.output:
-                tf = stack.enter_context(tarfile.open(args.output, mode=tar_mode))
-            else:
-                if sys.stdout.isatty():
-                    LOGGER.error("Refusing to write tar file to terminal")
-                    return 1
-                tf = stack.enter_context(
-                    tarfile.open(mode=tar_mode, fileobj=sys.stdout.buffer)
-                )
-            backend = OutputBackendTarfile(tf)
-        else:
-            assert args.output_type == "file"
-
-            if not args.output:
-                LOGGER.error(
-                    "--output file path must be provided with 'file' output type"
-                )
-                return 1
-
-            if os.path.exists(args.output):
-                LOGGER.error("output path already exists")
-                return 1
-
-            os.umask(0)
-            backend = OutputBackendFile(args.output)
-
         merged = _get_input_dir(stack, args.merged, args.merged_input_type)
         lower = _get_input_dir(stack, args.lower, args.lower_input_type)
-        diff_output = DIFF_CLASSES[args.diff_type](backend)
-        differ = Differ(merged, lower, diff_output)
+
+        diff_output: DiffOutput
+        if args.dry_run:
+            diff_output = DiffOutputDryRun()
+        else:
+            diff_output = DIFF_CLASSES[args.diff_type](
+                _get_backend(stack, args.output_type, args.output, args.force)
+            )
+
+        options = DifferOptions(
+            input_error_strict=not args.input_best_effort,
+            output_error_strict=not args.output_best_effort,
+        )
+
+        differ = Differ(merged, lower, diff_output, options=options)
         differ.diff()
 
     return 0

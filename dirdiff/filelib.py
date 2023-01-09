@@ -28,6 +28,7 @@ class ManagerBase:
         self.path = _encode(path)
         self.dir_fd = dir_fd
         self.fd = -1
+        self._entrances = 0
 
     @functools.cached_property
     def stat(self) -> StatInfo:
@@ -52,11 +53,15 @@ class ManagerBase:
         self.fd = os.open(self.path, self.OPEN_FLAGS, dir_fd=self.dir_fd)
 
     def __enter__(self):
-        self._open()
+        if self._entrances == 0:
+            self._open()
+        self._entrances += 1
         return self
 
     def __exit__(self, exc_type, exc_value, exc_tb) -> None:
-        self.close()
+        self._entrances -= 1
+        if self._entrances == 0:
+            self.close()
 
     def close(self) -> None:
         if self.fd != -1:

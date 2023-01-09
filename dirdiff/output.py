@@ -1,5 +1,7 @@
 import abc
 import logging
+import os
+import stat
 
 from dirdiff.filelib import StatInfo
 
@@ -49,21 +51,41 @@ class DiffOutputForwarding(DiffOutput):  # pylint: disable=abstract-method
 
 class DiffOutputDryRun(DiffOutput):
     def delete_marker(self, path: str) -> None:
-        LOGGER.info("Delete marker %s", path)
+        print(f"delete {repr(path)}")
+
+    @staticmethod
+    def _desc(path: str, st: StatInfo) -> str:
+        return (
+            f"{repr(path)} mode={(stat.S_IMODE(st.mode)):03o} owner={st.uid}:{st.gid}"
+        )
 
     def write_dir(self, path: str, st: StatInfo) -> None:
-        LOGGER.info("Write dir %s", path)
-        assert st
+        print(f"dir {self._desc(path, st)}")
 
     def write_file(self, path: str, st: StatInfo, reader) -> None:
-        LOGGER.info("Write file %s", path)
-        assert st
+        print(f"file {self._desc(path, st)}")
         assert reader
 
     def write_symlink(self, path: str, st: StatInfo, linkname: str) -> None:
-        LOGGER.info("Symlink %s -> %s", path, linkname)
-        assert st
+        print(f"symlink {self._desc(path, st)} target={repr(linkname)}")
 
     def write_other(self, path: str, st: StatInfo) -> None:
-        LOGGER.info("Other file %s", path)
-        assert st
+        other_formats = {
+            stat.S_IFSOCK: "sock",
+            stat.S_IFBLK: "block",
+            stat.S_IFCHR: "char",
+            stat.S_IFIFO: "fifo",
+            stat.S_IFDOOR: "door",
+            stat.S_IFPORT: "port",
+            stat.S_IFWHT: "whiteout",
+        }
+        fmt = stat.S_IFMT(st.mode)
+        fmt_name = other_formats.get(fmt)
+        if fmt_name is None:
+            print(f"other {self._desc(path, st)} type={fmt}")
+        elif fmt_name in ("block", "char"):
+            print(
+                f"{fmt_name} {self._desc(path, st)} dev={os.major(st.rdev)}:{os.minor(st.rdev)}"
+            )
+        else:
+            print(f"{fmt_name} {self._desc(path, st)}")
