@@ -8,7 +8,12 @@ from contextlib import ExitStack
 from enum import Enum
 from typing import List, Optional, Tuple, Union
 
-from dirdiff.exceptions import DirDiffException, DirDiffInputException
+from dirdiff.exceptions import (
+    DirDiffException,
+    DirDiffInputException,
+    DirDiffIOException,
+    DirDiffOutputException,
+)
 from dirdiff.filelib import DirectoryManager, FileManager, PathManager
 from dirdiff.filelib_tar import TarDirectoryManager, TarFileLoader
 from dirdiff.output import DiffOutput, StatInfo
@@ -17,7 +22,7 @@ LOGGER = logging.getLogger(__name__)
 
 DifferPathLike = Union[str, bytes, os.PathLike, tarfile.TarFile]
 
-InputErrors = (OSError, tarfile.TarError)
+IOErrors = (OSError, tarfile.TarError, DirDiffIOException)
 
 FAILED_STAT = StatInfo(
     mode=0o777,
@@ -131,13 +136,13 @@ class Differ:
     def diff(self) -> None:
         try:
             merged = self._cur_stack.enter_context(_open_dir(self.merged_dir))
-        except InputErrors as exc:
+        except IOErrors as exc:
             raise DirDiffException(
                 f"Failed to open merged path {self.merged_dir!r}: {exc}"
             ) from exc
         try:
             lower = self._cur_stack.enter_context(_open_dir(self.lower_dir))
-        except InputErrors as exc:
+        except IOErrors as exc:
             raise DirDiffException(
                 f"Failed to open lower path {self.lower_dir!r}: {exc}"
             ) from exc
@@ -146,12 +151,22 @@ class Differ:
     def _input_error(self, operand: str, path: str, verb: str) -> None:
         _, exc, _ = sys.exc_info()
         if exc is not None:
-            msg = f"error {verb} path {path!r} of {operand}: {exc}"
+            msg = f"error {verb} path={path!r} of {operand}: {exc}"
         else:
-            msg = f"error {verb} path {path!r} of {operand}"
+            msg = f"error {verb} path={path!r} of {operand}"
         if self.options.input_error_strict:
             raise DirDiffInputException(msg) from exc
-        LOGGER.warning("%s", msg)
+        LOGGER.warning("ignoring %s", msg)
+
+    def _output_error(self, path: str, verb: str) -> None:
+        _, exc, _ = sys.exc_info()
+        if exc is not None:
+            msg = f"error {verb} path={path!r}: {exc}"
+        else:
+            msg = f"error {verb} path={path!r}"
+        if self.options.output_error_strict:
+            raise DirDiffOutputException(msg) from exc
+        LOGGER.warning("ignoring %s", msg)
 
     def _input_error_merged(self, path: str, verb: str) -> None:
         self._input_error(OPERAND_MERGED, path, verb)
@@ -177,7 +192,7 @@ class Differ:
                 dir_entry.name: _dir_entry_type(dir_entry) for dir_entry in lower
             }
             lower_stat = lower.stat
-        except InputErrors:
+        except IOErrors:
             self._input_error_lower(archive_path, "listing")
 
         merged_entries = []
@@ -186,7 +201,7 @@ class Differ:
             stack.enter_context(merged)
             merged_entries = list(merged)
             merged_stat = merged.stat
-        except InputErrors:
+        except IOErrors:
             self._input_error_merged(archive_path, "listing")
             LOGGER.warning("treating %s as empty", archive_path)
 
@@ -234,7 +249,10 @@ class Differ:
 
         for name in lower_map:
             self._flush_pending()
-            self.output.delete_marker(os.path.join(archive_path, name))
+            try:
+                self.output.delete_marker(os.path.join(archive_path, name))
+            except IOErrors:
+                self._output_error(archive_path, "creating delete marker")
 
         # Remove ourselves from _dir_pending if we're still there. Note at this
         # point if _dir_pending isn't empty we must be at the end of it.
@@ -254,7 +272,7 @@ class Differ:
         try:
             stack.enter_context(merged)
             merged_stat = merged.stat
-        except InputErrors:
+        except IOErrors:
             self._input_error_merged(archive_path, "accessing")
             LOGGER.warning("skipping file %s", archive_path)
             return
@@ -263,7 +281,7 @@ class Differ:
         try:
             stack.enter_context(lower)
             lower_stat = lower.stat
-        except InputErrors:
+        except IOErrors:
             self._input_error_lower(archive_path, "accessing")
 
         if self.options.stats_differ(merged_stat, lower_stat):
@@ -274,27 +292,27 @@ class Differ:
         differs = False
         try:
             merged_reader = stack.enter_context(merged.reader())
-        except InputErrors:
+        except IOErrors:
             self._input_error_merged(archive_path, "opening")
             LOGGER.warning("skipping file %s", archive_path)
             return
 
         try:
             lower_reader = stack.enter_context(lower.reader())
-        except InputErrors:
+        except IOErrors:
             self._input_error_lower(archive_path, "opening")
 
         while True:
             try:
                 merged_data = merged_reader.read(CHUNK_SIZE)
-            except InputErrors:
+            except IOErrors:
                 self._input_error_merged(archive_path, "reading")
                 LOGGER.warning("skipping file %s", archive_path)
                 return
 
             try:
                 lower_data = lower_reader.read(CHUNK_SIZE)
-            except InputErrors:
+            except IOErrors:
                 self._input_error_lower(archive_path, "reading")
                 differs = True
                 break
@@ -322,7 +340,7 @@ class Differ:
             stack.enter_context(merged)
             merged_stat = merged.stat
             merged_linkname = merged.linkname if stat.S_ISLNK(merged_stat.mode) else ""
-        except InputErrors:
+        except IOErrors:
             self._input_error_merged(archive_path, "accessing")
             LOGGER.warning("skipping object %s", archive_path)
             return
@@ -333,7 +351,7 @@ class Differ:
             stack.enter_context(lower)
             lower_stat = lower.stat
             lower_linkname = lower.linkname if stat.S_ISLNK(lower_stat.mode) else ""
-        except InputErrors:
+        except IOErrors:
             self._input_error_lower(archive_path, "accessing")
 
         if not self.options.stats_differ(merged_stat, lower_stat):
@@ -347,7 +365,10 @@ class Differ:
     def _flush_pending(self) -> None:
         for archive_path, dir_stat in self._dir_pending:
             LOGGER.debug("Inserting directory metadata %s", archive_path)
-            self.output.write_dir(archive_path, self.options.stats_filter(dir_stat))
+            try:
+                self.output.write_dir(archive_path, self.options.stats_filter(dir_stat))
+            except IOErrors:
+                self._output_error(archive_path, "creating dir")
         self._dir_pending.clear()
 
     @_new_stack
@@ -366,10 +387,13 @@ class Differ:
             stack.enter_context(obj)
             obj_stat = obj.stat
             dir_entries = list(obj)
-        except InputErrors:
+        except IOErrors:
             self._input_error_merged(archive_path, "listing")
 
-        self.output.write_dir(archive_path, self.options.stats_filter(obj_stat))
+        try:
+            self.output.write_dir(archive_path, self.options.stats_filter(obj_stat))
+        except IOErrors:
+            self._output_error(archive_path, "creating dir")
         for dir_entry in dir_entries:
             cpath = os.path.join(archive_path, dir_entry.name)
             if dir_entry.is_dir(follow_symlinks=False):
@@ -393,14 +417,17 @@ class Differ:
             stack.enter_context(obj)
             obj_stat = obj.stat
             reader = stack.enter_context(obj.reader())
-        except InputErrors:
+        except IOErrors:
             self._input_error_merged(archive_path, "opening")
             LOGGER.warning("skipping file %s", archive_path)
             return
 
-        self.output.write_file(
-            archive_path, self.options.stats_filter(obj_stat), reader
-        )
+        try:
+            self.output.write_file(
+                archive_path, self.options.stats_filter(obj_stat), reader
+            )
+        except IOErrors:
+            self._output_error(archive_path, "writing file")
 
     @_new_stack
     def _insert_other(
@@ -416,14 +443,20 @@ class Differ:
             stack.enter_context(obj)
             obj_stat = obj.stat
             obj_linkname = obj.linkname if stat.S_ISLNK(obj_stat.mode) else ""
-        except InputErrors:
+        except IOErrors:
             self._input_error_merged(archive_path, "accessing")
             LOGGER.warning("skipping object %s", archive_path)
             return
 
         if stat.S_ISLNK(obj_stat.mode):
-            self.output.write_symlink(
-                archive_path, self.options.stats_filter(obj_stat), obj_linkname
-            )
+            try:
+                self.output.write_symlink(
+                    archive_path, self.options.stats_filter(obj_stat), obj_linkname
+                )
+            except IOErrors:
+                self._output_error(archive_path, "writing symlink")
             return
-        self.output.write_other(archive_path, self.options.stats_filter(obj_stat))
+        try:
+            self.output.write_other(archive_path, self.options.stats_filter(obj_stat))
+        except IOErrors:
+            self._output_error(archive_path, "writing other")

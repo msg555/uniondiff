@@ -75,7 +75,7 @@ class FileManagerReader:
         self.owns = owns
         self.offset = 0
 
-    def read(self, n=2**16) -> bytes:
+    def read(self, n: int) -> bytes:
         result = os.pread(self.fd, n, self.offset)
         self.offset += len(result)
         n -= len(result)

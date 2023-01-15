@@ -4,5 +4,13 @@ class DirDiffException(Exception):
         self.exit_code = exit_code
 
 
-class DirDiffInputException(DirDiffException):
+class DirDiffIOException(DirDiffException):
+    pass
+
+
+class DirDiffInputException(DirDiffIOException):
+    pass
+
+
+class DirDiffOutputException(DirDiffIOException):
     pass

@@ -4,6 +4,7 @@ import stat
 import tarfile
 from tarfile import TarFile, TarInfo
 
+from dirdiff.exceptions import DirDiffOutputException
 from dirdiff.output import OutputBackend, StatInfo
 
 LOGGER = logging.getLogger(__name__)
@@ -45,18 +46,13 @@ class OutputBackendTarfile(OutputBackend):
 
     def write_other(self, path: str, st: StatInfo) -> None:
         ti = self._get_tar_info(path, st)
-        if stat.S_ISSOCK(st.mode):
-            # Sockets are not supported in tar format
-            LOGGER.warning("Converting socket %s to fifo", path)
-            ti.type = tarfile.FIFOTYPE
-        elif stat.S_ISBLK(st.mode):
+        if stat.S_ISBLK(st.mode):
             ti.type = tarfile.BLKTYPE
         elif stat.S_ISCHR(st.mode):
             ti.type = tarfile.CHRTYPE
         elif stat.S_ISFIFO(st.mode):
             ti.type = tarfile.FIFOTYPE
         else:
-            LOGGER.warning("Ignoring %s: unknown file type", path)
-            return
+            raise DirDiffOutputException("file type not supported by tar archives")
 
         self.tf.addfile(ti)

@@ -104,6 +104,14 @@ def parse_args():
         const=True,
         help="Ignore output errors as much as possible",
     )
+    parser.add_argument(
+        "-p",
+        "--preserve-owners",
+        action="store_const",
+        default=False,
+        const=True,
+        help="Attempt to chown files to preserve ownership, only applies to file-based output",
+    )
     return parser.parse_args()
 
 
@@ -115,10 +123,9 @@ def setup_logging(verbose: int) -> None:
         log_format = "%(levelname)s(%(module)s): %(message)s"
     elif verbose > 1:
         log_level = logging.INFO
-        log_format = "%(levelname)s(%(module)s): %(message)s"
+        log_format = "%(levelname)s: %(message)s"
     elif verbose > 0:
         log_level = logging.WARNING
-        log_format = "%(levelname)s: %(message)s"
 
     logging.basicConfig(
         format=log_format,
@@ -146,7 +153,7 @@ def _get_input_dir(
 
 
 def _get_backend(
-    stack: ExitStack, output_type: str, output: str, force: bool
+    stack: ExitStack, output_type: str, output: str, force: bool, preserve_owners: bool
 ) -> OutputBackend:
     # pylint: disable=consider-using-with
     if output_type in ("tar", "tgz"):
@@ -159,6 +166,8 @@ def _get_backend(
             tf = stack.enter_context(
                 tarfile.open(mode=tar_mode, fileobj=sys.stdout.buffer)
             )
+        if preserve_owners:
+            LOGGER.warning("Ignoring flag --preserve-owners for archive output")
         return OutputBackendTarfile(tf)
 
     assert output_type == "file"
@@ -172,7 +181,7 @@ def _get_backend(
         raise DirDiffException("output path already exists")
 
     os.umask(0)
-    return OutputBackendFile(output)
+    return OutputBackendFile(output, preserve_owners=preserve_owners)
 
 
 def main() -> int:
@@ -188,7 +197,13 @@ def main() -> int:
             diff_output = DiffOutputDryRun()
         else:
             diff_output = DIFF_CLASSES[args.diff_type](
-                _get_backend(stack, args.output_type, args.output, args.force)
+                _get_backend(
+                    stack,
+                    args.output_type,
+                    args.output,
+                    args.force,
+                    args.preserve_owners,
+                )
             )
 
         options = DifferOptions(
