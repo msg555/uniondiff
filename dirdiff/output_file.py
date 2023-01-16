@@ -10,9 +10,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OutputBackendFile(OutputBackend):
+    SUPPORTS_PRESERVE_OWNERS = hasattr(os, "lchown") and hasattr(os, "fchown")
+
     def __init__(self, base_path: str, *, preserve_owners=False) -> None:
         self.base_path = base_path
         self.preserve_owners = preserve_owners
+        if preserve_owners and not self.SUPPORTS_PRESERVE_OWNERS:
+            raise ValueError("OS does not support preserving owners")
 
     def _full_path(self, path: str) -> str:
         return os.path.normpath(os.path.join(self.base_path, path))
@@ -51,9 +55,13 @@ class OutputBackendFile(OutputBackend):
 
     def write_other(self, path: str, st: StatInfo) -> None:
         full_path = self._full_path(path)
-        if stat.S_IFMT(st.mode) in (stat.S_IFCHR, stat.S_IFBLK, stat.S_IFIFO):
+        if stat.S_IFMT(st.mode) in (
+            stat.S_IFCHR,
+            stat.S_IFBLK,
+            stat.S_IFIFO,
+        ) and hasattr(os, "mknod"):
             os.mknod(full_path, mode=st.mode, device=st.rdev)
-        elif stat.S_ISSOCK(st.mode):
+        elif stat.S_ISSOCK(st.mode) and hasattr(socket, "AF_UNIX"):
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
             sock.bind(full_path)
             sock.close()

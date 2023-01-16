@@ -70,13 +70,21 @@ class ManagerBase:
 
 
 class FileManagerReader:
+    HAS_PREAD = hasattr(os, "pread")
+
     def __init__(self, fd: int, owns: bool) -> None:
         self.fd = fd
         self.owns = owns
         self.offset = 0
+        if not owns and not self.HAS_PREAD:
+            raise OSError("Cannot create unowned reader without pread")
 
     def read(self, n: int) -> bytes:
-        result = os.pread(self.fd, n, self.offset)
+        if self.HAS_PREAD:
+            result = os.pread(self.fd, n, self.offset)
+        else:
+            assert self.owns
+            result = os.read(self.fd, n)
         self.offset += len(result)
         n -= len(result)
 
@@ -87,7 +95,11 @@ class FileManagerReader:
         # Slow path when we don't get as much data as we wanted.
         parts = [result]
         while n > 0:
-            result = os.pread(self.fd, n, self.offset)
+            if self.HAS_PREAD:
+                result = os.pread(self.fd, n, self.offset)
+            else:
+                assert self.owns
+                result = os.read(self.fd, n)
             self.offset += len(result)
             n -= len(result)
             if not result:
@@ -109,6 +121,8 @@ class FileManagerReader:
 
 
 class FileManager(ManagerBase):
+    SUPPORTS_DIR_FD = ManagerBase.SUPPORTS_DIR_FD and (hasattr(os, "pread"))
+
     def reader(self) -> FileManagerReader:
         if self.fd != -1:
             return FileManagerReader(self.fd, False)

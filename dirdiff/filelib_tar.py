@@ -8,6 +8,7 @@ from tarfile import TarFile, TarInfo
 from typing import Iterator
 
 from dirdiff.filelib import StatInfo
+from dirdiff.osshim import makedev
 
 _MODE_MAPPING = {
     tarfile.REGTYPE: stat.S_IFREG,
@@ -53,7 +54,7 @@ class TarManagerBase:
         if mode is None:
             raise OSError("Unsupported tar member type")
         mode |= self.ti.mode
-        rdev = os.makedev(
+        rdev = makedev(
             getattr(self.ti, "devmajor", 0),
             getattr(self.ti, "devminor", 0),
         )

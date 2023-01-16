@@ -6,9 +6,26 @@ import tempfile
 import pytest
 
 from dirdiff.filelib import StatInfo
+from dirdiff.osshim import major, makedev, minor
 from dirdiff.output_file import OutputBackendFile
 
 # pylint: disable=redefined-outer-name
+
+
+def _check_mode(actual: int, expected: int) -> None:
+    """
+    Check that the file type and permissions match. On windows we ignore the
+    permissions since they aren't supported. Note that some file systems, even on
+    unix systems, don't support permissions (like NTFS). For the purposes of this test
+    however we assume that an appropriate unix-capable file system is used for temp
+    directories on a unix system.
+    """
+    assert stat.S_IFMT(actual) == stat.S_IFMT(expected)
+    if os.name == "nt":
+        return
+    actual_perms = stat.S_IMODE(actual)
+    expected_perms = stat.S_IMODE(expected)
+    assert actual_perms == expected_perms
 
 
 def stat_with_defaults(
@@ -42,7 +59,7 @@ def test_file_write_dir(file_backend):
 
     file_path = os.path.join(file_backend.base_path, file_name)
     st = os.lstat(file_path)
-    assert st.st_mode == mode
+    _check_mode(st.st_mode, mode)
     assert not os.listdir(file_path)
 
 
@@ -56,7 +73,7 @@ def test_file_write_reg(file_backend):
 
     file_path = os.path.join(file_backend.base_path, file_name)
     st = os.lstat(file_path)
-    assert st.st_mode == mode
+    _check_mode(st.st_mode, mode)
     with open(file_path, "rb") as fdata:
         assert fdata.read() == data
 
@@ -69,7 +86,6 @@ def test_file_write_link(file_backend):
     st = stat_with_defaults(mode=mode, size=len(data))
     file_backend.write_file(file_name, st, io.BytesIO(data))
 
-    # Many file systems force these perms on symlink nodes.
     sym_mode = 0o777 | stat.S_IFLNK
     sym_file_name = "my-link"
     sym_st = stat_with_defaults(mode=sym_mode)
@@ -77,15 +93,17 @@ def test_file_write_link(file_backend):
 
     sym_file_path = os.path.join(file_backend.base_path, sym_file_name)
     st = os.lstat(sym_file_path)
-    assert st.st_mode == sym_mode
+    # Permission bits on symlinks are irrelevant, some OS/FS do different things
+    assert stat.S_ISLNK(st.st_mode)
     assert os.readlink(sym_file_path) == file_name
 
     st = os.stat(sym_file_path)
-    assert st.st_mode == mode
+    _check_mode(st.st_mode, mode)
     with open(sym_file_path, "rb") as fdata:
         assert fdata.read() == data
 
 
+@pytest.mark.unix
 @pytest.mark.cap
 @pytest.mark.cap_mknod
 @pytest.mark.parametrize(
@@ -101,16 +119,17 @@ def test_file_write_device(ftype, file_backend):
     dev_major = 12
     dev_minor = 7
 
-    st = stat_with_defaults(mode=mode, rdev=os.makedev(dev_major, dev_minor))
+    st = stat_with_defaults(mode=mode, rdev=makedev(dev_major, dev_minor))
     file_backend.write_other(file_name, st)
 
     file_path = os.path.join(file_backend.base_path, file_name)
     st = os.lstat(file_path)
-    assert st.st_mode == mode
-    assert os.major(st.st_rdev) == dev_major
-    assert os.minor(st.st_rdev) == dev_minor
+    _check_mode(st.st_mode, mode)
+    assert major(st.st_rdev) == dev_major
+    assert minor(st.st_rdev) == dev_minor
 
 
+@pytest.mark.unix
 @pytest.mark.cap
 @pytest.mark.cap_chown
 def test_file_write_chown(file_backend_preserve):
@@ -125,15 +144,23 @@ def test_file_write_chown(file_backend_preserve):
 
     file_path = os.path.join(file_backend_preserve.base_path, file_name)
     st = os.lstat(file_path)
-    assert st.st_mode == mode
+    _check_mode(st.st_mode, mode)
     assert st.st_uid == uid
     assert st.st_gid == gid
     with open(file_path, "rb") as fdata:
         assert fdata.read() == data
 
 
-def test_file_write_sock(file_backend):
-    mode = 0o600 | stat.S_IFSOCK
+@pytest.mark.unix
+@pytest.mark.parametrize(
+    "ftype",
+    [
+        pytest.param(stat.S_IFSOCK, id="sock"),
+        pytest.param(stat.S_IFIFO, id="fifo"),
+    ],
+)
+def test_file_write_sock(ftype, file_backend):
+    mode = 0o600 | ftype
     file_name = "my-sock"
 
     st = stat_with_defaults(mode=mode)
@@ -141,4 +168,4 @@ def test_file_write_sock(file_backend):
 
     file_path = os.path.join(file_backend.base_path, file_name)
     st = os.lstat(file_path)
-    assert st.st_mode == mode
+    _check_mode(st.st_mode, mode)

@@ -104,14 +104,15 @@ def parse_args():
         const=True,
         help="Ignore output errors as much as possible",
     )
-    parser.add_argument(
-        "-p",
-        "--preserve-owners",
-        action="store_const",
-        default=False,
-        const=True,
-        help="Attempt to chown files to preserve ownership, only applies to file-based output",
-    )
+    if OutputBackendFile.SUPPORTS_PRESERVE_OWNERS:
+        parser.add_argument(
+            "-p",
+            "--preserve-owners",
+            action="store_const",
+            default=False,
+            const=True,
+            help="Attempt to chown files to preserve ownership, only applies to file-based output",
+        )
     return parser.parse_args()
 
 

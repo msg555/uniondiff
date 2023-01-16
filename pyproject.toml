@@ -9,6 +9,7 @@ build-backend = "setuptools.build_meta"
 markers = [
   "unit: fast unit tests",
   "io: tests that operate on the file system, making use of temp files",
+  "unix: test only available on unix-like systems",
   "cap: test requires elevated linux capabilities",
   "cap_mknod: test requires mknod system caps",
   "cap_chown: test requires chown system caps",

@@ -5,6 +5,7 @@ import tarfile
 from tarfile import TarFile, TarInfo
 
 from dirdiff.exceptions import DirDiffOutputException
+from dirdiff.osshim import major, minor
 from dirdiff.output import OutputBackend, StatInfo
 
 LOGGER = logging.getLogger(__name__)
@@ -22,8 +23,8 @@ class OutputBackendTarfile(OutputBackend):
         ti.uid = st.uid
         ti.gid = st.gid
         if stat.S_ISBLK(st.mode) or stat.S_ISCHR(st.mode):
-            ti.devmajor = os.major(st.rdev)
-            ti.devminor = os.minor(st.rdev)
+            ti.devmajor = major(st.rdev)
+            ti.devminor = minor(st.rdev)
 
         return ti
 

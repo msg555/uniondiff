@@ -1,9 +1,9 @@
 import abc
 import logging
-import os
 import stat
 
 from dirdiff.filelib import StatInfo
+from dirdiff.osshim import major, minor
 
 LOGGER = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class DiffOutputDryRun(DiffOutput):
             print(f"other {self._desc(path, st)} type={fmt}")
         elif fmt_name in ("block", "char"):
             print(
-                f"{fmt_name} {self._desc(path, st)} dev={os.major(st.rdev)}:{os.minor(st.rdev)}"
+                f"{fmt_name} {self._desc(path, st)} dev={major(st.rdev)}:{minor(st.rdev)}"
             )
         else:
             print(f"{fmt_name} {self._desc(path, st)}")

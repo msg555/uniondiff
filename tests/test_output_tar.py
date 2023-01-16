@@ -6,6 +6,7 @@ import tarfile
 import pytest
 
 from dirdiff.filelib import StatInfo
+from dirdiff.osshim import makedev
 from dirdiff.output_tar import OutputBackendTarfile
 
 DEFAULT_UID = 1234
@@ -105,7 +106,7 @@ def test_file_write_device(ftype, attest):
     file_name = "my-char"
     dev_major = 12
     dev_minor = 7
-    st = stat_with_defaults(mode=mode, rdev=os.makedev(dev_major, dev_minor))
+    st = stat_with_defaults(mode=mode, rdev=makedev(dev_major, dev_minor))
 
     data = io.BytesIO()
     with tarfile.open(fileobj=data, mode="w") as tf:

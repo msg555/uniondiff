@@ -24,10 +24,18 @@ typecheck:
 lint: format-check pylint typecheck
 
 test:
-	$(PYTHON) -m pytest -sv --cov=dirdiff tests
+ifeq ($(OS),Windows_NT)
+	$(PYTHON) -m pytest -sv --cov=dirdiff -m 'not cap and not unix' tests
+else
+	$(PYTHON) -m pytest -sv --cov=dirdiff -m 'not cap' tests
+endif
 
 test-all:
+ifeq ($(OS),Windows_NT)
+	$(PYTHON) -m pytest -sv --cov=dirdiff -m 'not unix' tests
+else
 	$(PYTHON) -m pytest -sv --cov=dirdiff -m '' tests
+endif
 
 build:
 	$(PYTHON) -m build
