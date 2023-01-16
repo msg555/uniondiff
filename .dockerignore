@@ -1,0 +1,9 @@
+*
+!dirdiff
+!tests
+!requirements*
+!setup.cfg
+!pyproject.toml
+!Makefile
+!LICENSE
+!README*

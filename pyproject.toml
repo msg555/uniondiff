@@ -6,10 +6,15 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 markers = [
   "unit: fast unit tests",
   "io: tests that operate on the file system, making use of temp files",
+  "cap: test requires elevated linux capabilities",
+  "cap_mknod: test requires mknod system caps",
+  "cap_chown: test requires chown system caps",
+]
+addopts = [
+  "-m", "not cap",
 ]
 
 [tool.pylint.'MESSAGE CONTROL']

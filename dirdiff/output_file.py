@@ -10,7 +10,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OutputBackendFile(OutputBackend):
-    def __init__(self, base_path: str, *, preserve_owners=True) -> None:
+    def __init__(self, base_path: str, *, preserve_owners=False) -> None:
         self.base_path = base_path
         self.preserve_owners = preserve_owners
 
@@ -52,17 +52,13 @@ class OutputBackendFile(OutputBackend):
     def write_other(self, path: str, st: StatInfo) -> None:
         full_path = self._full_path(path)
         if stat.S_IFMT(st.mode) in (stat.S_IFCHR, stat.S_IFBLK, stat.S_IFIFO):
-            try:
-                os.mknod(full_path, mode=st.mode, device=st.rdev)
-            except PermissionError as err:
-                LOGGER.warning("Failed to create device file: %s", err)
-                return
+            os.mknod(full_path, mode=st.mode, device=st.rdev)
         elif stat.S_ISSOCK(st.mode):
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
             sock.bind(full_path)
             sock.close()
             os.chmod(full_path, stat.S_IMODE(st.mode))
         else:
-            LOGGER.warning("Ignoring %s: unknown file type", path)
+            raise DirDiffOutputException("Unsupported file type")
 
         self._fixup_owners(full_path, st)

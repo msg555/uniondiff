@@ -2,6 +2,8 @@
 PYTHON ?= python3
 PLATFORM ?= linux/amd64
 PROFILE ?= dev
+IMAGE_BUILDER ?= docker
+IMAGE_NAME ?= msg555/dirdiff
 
 all: format lint test docs
 
@@ -22,13 +24,22 @@ typecheck:
 lint: format-check pylint typecheck
 
 test:
-	$(PYTHON) -m pytest -sv --cov=tplbuild -m unit tests
+	$(PYTHON) -m pytest -sv --cov=dirdiff tests
+
+test-all:
+	$(PYTHON) -m pytest -sv --cov=dirdiff -m '' tests
 
 build:
 	$(PYTHON) -m build
 
 clean:
 	rm -rf build dist *.egg-info
+
+image:
+	$(IMAGE_BUILDER) build -t $(IMAGE_NAME) .
+
+image-%: image
+	docker run --rm -v "$${PWD}:/dirdiff" $(IMAGE_NAME) make $*
 
 pypi-test: build
 	TWINE_USERNAME=__token__ TWINE_PASSWORD="$(shell gpg -d test.pypi-token.gpg)" \
