@@ -25,6 +25,8 @@ def _norm_name(name: str) -> str:
 
 
 class TarFileLoader:
+    MISSING_DIRECTORY_TARINFO = TarInfo()
+
     def __init__(self, tf: TarFile) -> None:
         self.tf = tf
         self.children = collections.defaultdict(list)
@@ -32,9 +34,14 @@ class TarFileLoader:
         for ti in tf.getmembers():
             path = _norm_name(ti.name)
             parent_path, filename = os.path.split(path)
-            if filename:
-                self.children[parent_path].append((filename, ti))
             self.info[path] = ti
+
+            while filename:
+                self.children[parent_path].append((filename, ti))
+                if parent_path in self.info:
+                    break
+                self.info[parent_path] = self.MISSING_DIRECTORY_TARINFO
+                parent_path, filename = os.path.split(parent_path)
 
 
 class TarManagerBase:
@@ -108,6 +115,9 @@ class TarDirectoryManager(TarManagerBase):
 
     def close(self) -> None:
         pass
+
+    def exists_in_archive(self) -> bool:
+        return self.ti is not self.loader.MISSING_DIRECTORY_TARINFO
 
     def child_dir(self, name: str) -> "TarDirectoryManager":
         return TarDirectoryManager(self.loader, os.path.join(self.name, name))

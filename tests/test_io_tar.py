@@ -6,7 +6,8 @@ import tarfile
 import pytest
 
 from dirdiff.filelib import StatInfo
-from dirdiff.osshim import makedev
+from dirdiff.filelib_tar import TarDirectoryManager, TarFileLoader
+from dirdiff.osshim import major, makedev, minor
 from dirdiff.output_tar import OutputBackendTarfile
 
 DEFAULT_UID = 1234
@@ -43,6 +44,14 @@ def test_file_write_dir():
         assert ti.uid == DEFAULT_UID
         assert ti.gid == DEFAULT_GID
 
+        loader = TarFileLoader(tf)
+        with TarDirectoryManager(loader, os.path.sep) as dm:
+            assert not dm.exists_in_archive()
+            assert [(entry.name, entry.is_dir()) for entry in dm] == [(file_name, True)]
+            with dm.child_dir(file_name) as sdm:
+                assert sdm.stat.mode == mode
+                assert [entry.name for entry in sdm] == []
+
 
 def test_file_write_reg():
     mode = 0o644 | stat.S_IFREG
@@ -65,6 +74,17 @@ def test_file_write_reg():
         assert ti.gid == DEFAULT_GID
         with tf.extractfile(ti) as fdata:
             assert fdata.read() == file_data
+
+        loader = TarFileLoader(tf)
+        with TarDirectoryManager(loader, os.path.sep) as dm:
+            assert not dm.exists_in_archive()
+            assert [(entry.name, entry.is_file()) for entry in dm] == [
+                (file_name, True)
+            ]
+            with dm.child_file(file_name) as fm:
+                assert fm.stat.mode == mode
+                with fm.reader() as reader:
+                    assert reader.read(2**16) == file_data
 
 
 def test_file_write_link():
@@ -92,6 +112,16 @@ def test_file_write_link():
         assert ti.linkname == file_name
         assert ti.uid == DEFAULT_UID
         assert ti.gid == DEFAULT_GID
+
+        loader = TarFileLoader(tf)
+        with TarDirectoryManager(loader, os.path.sep) as dm:
+            assert not dm.exists_in_archive()
+            assert sorted(
+                (entry.name, entry.is_file(follow_symlinks=False)) for entry in dm
+            ) == sorted(((file_name, True), (sym_file_name, False)))
+            with dm.child_path(sym_file_name) as pm:
+                assert pm.stat.mode == sym_mode
+                assert pm.linkname == file_name
 
 
 @pytest.mark.parametrize(
@@ -122,3 +152,14 @@ def test_file_write_device(ftype, attest):
         assert ti.devminor == dev_minor
         assert ti.uid == DEFAULT_UID
         assert ti.gid == DEFAULT_GID
+
+        loader = TarFileLoader(tf)
+        with TarDirectoryManager(loader, os.path.sep) as dm:
+            assert not dm.exists_in_archive()
+            assert [(entry.name, entry.is_file()) for entry in dm] == [
+                (file_name, False)
+            ]
+            with dm.child_path(file_name) as pm:
+                assert pm.stat.mode == mode
+                assert major(pm.stat.rdev) == dev_major
+                assert minor(pm.stat.rdev) == dev_minor

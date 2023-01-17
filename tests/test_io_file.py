@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from dirdiff.filelib import StatInfo
+from dirdiff.filelib import DirectoryManager, StatInfo
 from dirdiff.osshim import major, makedev, minor
 from dirdiff.output_file import OutputBackendFile
 
@@ -62,6 +62,12 @@ def test_file_write_dir(file_backend):
     _check_mode(st.st_mode, mode)
     assert not os.listdir(file_path)
 
+    with DirectoryManager(file_backend.base_path) as dm:
+        assert [(entry.name, entry.is_dir()) for entry in dm] == [(file_name, True)]
+        with dm.child_dir(file_name) as sdm:
+            _check_mode(sdm.stat.mode, mode)
+            assert [entry.name for entry in sdm] == []
+
 
 def test_file_write_reg(file_backend):
     mode = 0o644 | stat.S_IFREG
@@ -76,6 +82,13 @@ def test_file_write_reg(file_backend):
     _check_mode(st.st_mode, mode)
     with open(file_path, "rb") as fdata:
         assert fdata.read() == data
+
+    with DirectoryManager(file_backend.base_path) as dm:
+        assert [(entry.name, entry.is_file()) for entry in dm] == [(file_name, True)]
+        with dm.child_file(file_name) as fm:
+            _check_mode(fm.stat.mode, mode)
+            with fm.reader() as reader:
+                assert reader.read(2**16) == data
 
 
 def test_file_write_link(file_backend):
@@ -101,6 +114,14 @@ def test_file_write_link(file_backend):
     _check_mode(st.st_mode, mode)
     with open(sym_file_path, "rb") as fdata:
         assert fdata.read() == data
+
+    with DirectoryManager(file_backend.base_path) as dm:
+        assert sorted(
+            (entry.name, entry.is_file(follow_symlinks=False)) for entry in dm
+        ) == sorted(((file_name, True), (sym_file_name, False)))
+        with dm.child_path(sym_file_name) as pm:
+            assert stat.S_ISLNK(pm.stat.mode)
+            assert pm.linkname == file_name
 
 
 @pytest.mark.unix
@@ -128,6 +149,14 @@ def test_file_write_device(ftype, file_backend):
     assert major(st.st_rdev) == dev_major
     assert minor(st.st_rdev) == dev_minor
 
+    with DirectoryManager(file_backend.base_path) as dm:
+        assert [(entry.name, entry.is_file()) for entry in dm] == [(file_name, False)]
+        with dm.child_path(file_name) as pm:
+            _check_mode(pm.stat.mode, mode)
+            assert stat.S_IFMT(pm.stat.mode) == ftype
+            assert major(pm.stat.rdev) == dev_major
+            assert minor(pm.stat.rdev) == dev_minor
+
 
 @pytest.mark.unix
 @pytest.mark.cap
@@ -150,6 +179,15 @@ def test_file_write_chown(file_backend_preserve):
     with open(file_path, "rb") as fdata:
         assert fdata.read() == data
 
+    with DirectoryManager(file_backend_preserve.base_path) as dm:
+        assert [(entry.name, entry.is_file()) for entry in dm] == [(file_name, True)]
+        with dm.child_file(file_name) as fm:
+            assert fm.stat.uid == uid
+            assert fm.stat.gid == gid
+            _check_mode(fm.stat.mode, mode)
+            with fm.reader() as reader:
+                assert reader.read(2**16) == data
+
 
 @pytest.mark.unix
 @pytest.mark.parametrize(
@@ -169,3 +207,9 @@ def test_file_write_sock(ftype, file_backend):
     file_path = os.path.join(file_backend.base_path, file_name)
     st = os.lstat(file_path)
     _check_mode(st.st_mode, mode)
+
+    with DirectoryManager(file_backend.base_path) as dm:
+        assert [(entry.name, entry.is_file()) for entry in dm] == [(file_name, False)]
+        with dm.child_path(file_name) as pm:
+            _check_mode(pm.stat.mode, mode)
+            assert stat.S_IFMT(pm.stat.mode) == ftype
