@@ -1,5 +1,4 @@
 import io
-import os
 import stat
 import tarfile
 
@@ -7,7 +6,7 @@ import pytest
 
 from dirdiff.filelib import StatInfo
 from dirdiff.filelib_tar import TarDirectoryManager, TarFileLoader
-from dirdiff.osshim import major, makedev, minor
+from dirdiff.osshim import major, makedev, minor, posix_join
 from dirdiff.output_tar import OutputBackendTarfile
 
 DEFAULT_UID = 1234
@@ -38,14 +37,14 @@ def test_file_write_dir():
     data.seek(0)
     with tarfile.open(fileobj=data, mode="r") as tf:
         assert len(tf.getmembers()) == 1
-        ti = tf.getmember(os.path.join(backend.archive_root, file_name))
+        ti = tf.getmember(posix_join(backend.archive_root, file_name))
         assert st.mode == mode
         assert ti.isdir()
         assert ti.uid == DEFAULT_UID
         assert ti.gid == DEFAULT_GID
 
         loader = TarFileLoader(tf)
-        with TarDirectoryManager(loader, os.path.sep) as dm:
+        with TarDirectoryManager(loader, "/") as dm:
             assert not dm.exists_in_archive()
             assert [(entry.name, entry.is_dir()) for entry in dm] == [(file_name, True)]
             with dm.child_dir(file_name) as sdm:
@@ -67,7 +66,7 @@ def test_file_write_reg():
     data.seek(0)
     with tarfile.open(fileobj=data, mode="r") as tf:
         assert len(tf.getmembers()) == 1
-        ti = tf.getmember(os.path.join(backend.archive_root, file_name))
+        ti = tf.getmember(posix_join(backend.archive_root, file_name))
         assert st.mode == mode
         assert ti.isreg()
         assert ti.uid == DEFAULT_UID
@@ -76,7 +75,7 @@ def test_file_write_reg():
             assert fdata.read() == file_data
 
         loader = TarFileLoader(tf)
-        with TarDirectoryManager(loader, os.path.sep) as dm:
+        with TarDirectoryManager(loader, "/") as dm:
             assert not dm.exists_in_archive()
             assert [(entry.name, entry.is_file()) for entry in dm] == [
                 (file_name, True)
@@ -107,14 +106,14 @@ def test_file_write_link():
     data.seek(0)
     with tarfile.open(fileobj=data, mode="r") as tf:
         assert len(tf.getmembers()) == 2
-        ti = tf.getmember(os.path.join(backend.archive_root, sym_file_name))
+        ti = tf.getmember(posix_join(backend.archive_root, sym_file_name))
         assert ti.issym()
         assert ti.linkname == file_name
         assert ti.uid == DEFAULT_UID
         assert ti.gid == DEFAULT_GID
 
         loader = TarFileLoader(tf)
-        with TarDirectoryManager(loader, os.path.sep) as dm:
+        with TarDirectoryManager(loader, "/") as dm:
             assert not dm.exists_in_archive()
             assert sorted(
                 (entry.name, entry.is_file(follow_symlinks=False)) for entry in dm
@@ -146,7 +145,7 @@ def test_file_write_device(ftype, attest):
     data.seek(0)
     with tarfile.open(fileobj=data, mode="r") as tf:
         assert len(tf.getmembers()) == 1
-        ti = tf.getmember(os.path.join(backend.archive_root, file_name))
+        ti = tf.getmember(posix_join(backend.archive_root, file_name))
         assert attest(ti)
         assert ti.devmajor == dev_major
         assert ti.devminor == dev_minor
@@ -154,7 +153,7 @@ def test_file_write_device(ftype, attest):
         assert ti.gid == DEFAULT_GID
 
         loader = TarFileLoader(tf)
-        with TarDirectoryManager(loader, os.path.sep) as dm:
+        with TarDirectoryManager(loader, "/") as dm:
             assert not dm.exists_in_archive()
             assert [(entry.name, entry.is_file()) for entry in dm] == [
                 (file_name, False)

@@ -9,7 +9,7 @@ from dirdiff.cli import main
 def tar_summarize(tf: tarfile.TarFile):
     result = {}
     while ti := tf.next():
-        assert ti.name == "." or ti.name.startswith(f".{os.path.sep}")
+        assert ti.name == "." or ti.name.startswith("./")
         assert ti.name not in result
         parent = os.path.dirname(ti.name)
 
@@ -65,4 +65,10 @@ def run_test(name: str) -> None:
 
 
 def test_generic():
+    """Test several different misc things"""
+    run_test("generic")
+
+
+def test_backslash():
+    """Test that files with backslashes work okay for tar archives."""
     run_test("generic")

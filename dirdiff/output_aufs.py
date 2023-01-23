@@ -1,8 +1,8 @@
 import io
 import logging
-import os
 import stat
 
+from dirdiff.osshim import posix_basename, posix_join, posix_split
 from dirdiff.output import DiffOutputForwarding, OutputBackend, StatInfo
 
 LOGGER = logging.getLogger(__name__)
@@ -18,12 +18,12 @@ class DiffOutputAufs(DiffOutputForwarding):
 
     @classmethod
     def is_whiteout_path(cls, path: str) -> bool:
-        return os.path.basename(path).startswith(cls.WHITEOUT_PREFIX)
+        return posix_basename(path).startswith(cls.WHITEOUT_PREFIX)
 
     def delete_marker(self, path: str) -> None:
-        head, tail = os.path.split(path)
+        head, tail = posix_split(path)
         self.backend.write_file(
-            os.path.join(head, self.WHITEOUT_PREFIX + tail),
+            posix_join(head, self.WHITEOUT_PREFIX + tail),
             StatInfo(
                 mode=stat.S_IFREG | 0o444,
                 uid=self.whiteout_uid,

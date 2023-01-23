@@ -1,14 +1,13 @@
 import collections
 import contextlib
 import functools
-import os
 import stat
 import tarfile
 from tarfile import TarFile, TarInfo
 from typing import Iterator
 
 from dirdiff.filelib import StatInfo
-from dirdiff.osshim import makedev
+from dirdiff.osshim import makedev, posix_join, posix_norm, posix_split
 
 _MODE_MAPPING = {
     tarfile.REGTYPE: stat.S_IFREG,
@@ -21,7 +20,7 @@ _MODE_MAPPING = {
 
 
 def _norm_name(name: str) -> str:
-    return os.path.normpath(os.path.join(os.path.sep, name))
+    return posix_norm(posix_join("/", name))
 
 
 class TarFileLoader:
@@ -33,7 +32,7 @@ class TarFileLoader:
         self.info = {}
         for ti in tf.getmembers():
             path = _norm_name(ti.name)
-            parent_path, filename = os.path.split(path)
+            parent_path, filename = posix_split(path)
             self.info[path] = ti
 
             while filename:
@@ -41,7 +40,7 @@ class TarFileLoader:
                 if parent_path in self.info:
                     break
                 self.info[parent_path] = self.MISSING_DIRECTORY_TARINFO
-                parent_path, filename = os.path.split(parent_path)
+                parent_path, filename = posix_split(parent_path)
 
 
 class TarManagerBase:
@@ -120,10 +119,10 @@ class TarDirectoryManager(TarManagerBase):
         return self.ti is not self.loader.MISSING_DIRECTORY_TARINFO
 
     def child_dir(self, name: str) -> "TarDirectoryManager":
-        return TarDirectoryManager(self.loader, os.path.join(self.name, name))
+        return TarDirectoryManager(self.loader, posix_join(self.name, name))
 
     def child_file(self, name: str) -> TarFileManager:
-        return TarFileManager(self.loader, os.path.join(self.name, name))
+        return TarFileManager(self.loader, posix_join(self.name, name))
 
     def child_path(self, name: str) -> TarPathManager:
-        return TarPathManager(self.loader, os.path.join(self.name, name))
+        return TarPathManager(self.loader, posix_join(self.name, name))

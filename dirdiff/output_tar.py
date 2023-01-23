@@ -1,30 +1,36 @@
 import logging
-import os
 import stat
 import tarfile
 from tarfile import TarFile, TarInfo
 
 from dirdiff.exceptions import DirDiffOutputException
-from dirdiff.osshim import major, minor
+from dirdiff.osshim import major, minor, posix_join
 from dirdiff.output import OutputBackend, StatInfo
 
 LOGGER = logging.getLogger(__name__)
 
 
 class OutputBackendTarfile(OutputBackend):
+    """
+    Tarfile output backend.
+
+    Note that all paths are expected to be '/' separated when using this module.
+    Other separators will be considered parts of file names.
+    """
+
     def __init__(self, tf: TarFile, *, archive_root=".") -> None:
         self.tf = tf
         self.archive_root = archive_root
 
     def _get_tar_info(self, name: str, st: StatInfo) -> TarInfo:
-        if name in (".", os.path.sep):
+        if name in (".", "/"):
             arch_name = self.archive_root
-        elif name.startswith(f".{os.path.sep}"):
-            arch_name = os.path.join(self.archive_root, name[2:])
-        elif name.startswith(os.path.sep):
-            arch_name = os.path.join(self.archive_root, name[1:])
+        elif name.startswith("./"):
+            arch_name = posix_join(self.archive_root, name[2:])
+        elif name.startswith("/"):
+            arch_name = posix_join(self.archive_root, name[1:])
         else:
-            arch_name = os.path.join(self.archive_root, name)
+            arch_name = posix_join(self.archive_root, name)
         ti = TarInfo(arch_name)
         ti.mode = stat.S_IMODE(st.mode)
         ti.mtime = st.mtime

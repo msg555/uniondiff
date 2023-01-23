@@ -16,6 +16,7 @@ from dirdiff.exceptions import (
 )
 from dirdiff.filelib import DirectoryManager, FileManager, PathManager
 from dirdiff.filelib_tar import TarDirectoryManager, TarFileLoader
+from dirdiff.osshim import posix_join
 from dirdiff.output import DiffOutput, StatInfo
 
 LOGGER = logging.getLogger(__name__)
@@ -100,7 +101,7 @@ class DifferOptions:
 
 def _open_dir(path_dir: DifferPathLike) -> DirectoryManager:
     if isinstance(path_dir, tarfile.TarFile):
-        return TarDirectoryManager(TarFileLoader(path_dir), os.path.sep)  # type: ignore
+        return TarDirectoryManager(TarFileLoader(path_dir), "/")  # type: ignore
     return DirectoryManager(path_dir)
 
 
@@ -216,7 +217,7 @@ class Differ:
 
         for dir_entry in merged_entries:
             dir_entry_type = _dir_entry_type(dir_entry)
-            cpath = os.path.join(archive_path, dir_entry.name)
+            cpath = posix_join(archive_path, dir_entry.name)
 
             lower_type = lower_map.pop(dir_entry.name, None)
             if dir_entry_type == DirEntryType.DIRECTORY:
@@ -250,7 +251,7 @@ class Differ:
         for name in lower_map:
             self._flush_pending()
             try:
-                self.output.delete_marker(os.path.join(archive_path, name))
+                self.output.delete_marker(posix_join(archive_path, name))
             except IOErrors:
                 self._output_error(archive_path, "creating delete marker")
 
@@ -395,7 +396,7 @@ class Differ:
         except IOErrors:
             self._output_error(archive_path, "creating dir")
         for dir_entry in dir_entries:
-            cpath = os.path.join(archive_path, dir_entry.name)
+            cpath = posix_join(archive_path, dir_entry.name)
             if dir_entry.is_dir(follow_symlinks=False):
                 self._insert_dir(cpath, obj.child_dir(dir_entry.name))
             elif dir_entry.is_file(follow_symlinks=False):

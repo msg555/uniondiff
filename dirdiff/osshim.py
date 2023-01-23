@@ -1,4 +1,17 @@
 # pylint: disable=redefined-outer-name,unused-import
+import os
+from typing import List, Tuple
+
+try:
+    from posixpath import basename as posix_basename
+    from posixpath import join as posix_join
+    from posixpath import normpath as posix_norm
+    from posixpath import split as posix_split
+except ImportError:
+    from os.path import basename as posix_basename
+    from os.path import join as posix_join
+    from os.path import normpath as posix_norm
+    from os.path import split as posix_split
 
 try:
     from os import makedev
