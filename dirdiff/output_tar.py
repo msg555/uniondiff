@@ -17,7 +17,15 @@ class OutputBackendTarfile(OutputBackend):
         self.archive_root = archive_root
 
     def _get_tar_info(self, name: str, st: StatInfo) -> TarInfo:
-        ti = TarInfo(os.path.join(self.archive_root, name))
+        if name in (".", os.path.sep):
+            arch_name = self.archive_root
+        elif name.startswith(f".{os.path.sep}"):
+            arch_name = os.path.join(self.archive_root, name[2:])
+        elif name.startswith(os.path.sep):
+            arch_name = os.path.join(self.archive_root, name[1:])
+        else:
+            arch_name = os.path.join(self.archive_root, name)
+        ti = TarInfo(arch_name)
         ti.mode = stat.S_IMODE(st.mode)
         ti.mtime = st.mtime
         ti.uid = st.uid

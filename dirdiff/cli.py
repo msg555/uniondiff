@@ -22,7 +22,7 @@ DIFF_CLASSES = {
 }
 
 
-def parse_args():
+def parse_args(args=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Computes the directory difference `upper = merged - lower`"
     )
@@ -113,7 +113,7 @@ def parse_args():
             const=True,
             help="Attempt to chown files to preserve ownership, only applies to file-based output",
         )
-    return parser.parse_args()
+    return parser.parse_args(args=args)
 
 
 def setup_logging(verbose: int) -> None:
@@ -185,8 +185,8 @@ def _get_backend(
     return OutputBackendFile(output, preserve_owners=preserve_owners)
 
 
-def main() -> int:
-    args = parse_args()
+def main(args=None) -> int:
+    args = parse_args(args=args)
     setup_logging(1 + args.verbose - args.quiet)
 
     with ExitStack() as stack:
@@ -203,7 +203,7 @@ def main() -> int:
                     args.output_type,
                     args.output,
                     args.force,
-                    args.preserve_owners,
+                    getattr(args, "preserve_owners", False),
                 )
             )
 
