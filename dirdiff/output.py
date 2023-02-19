@@ -9,30 +9,45 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OutputBackend(metaclass=abc.ABCMeta):
+    """
+    Interface used to write file objects to an arbitrary backend.
+    """
+
     @abc.abstractmethod
     def write_dir(self, path: str, st: StatInfo) -> None:
-        pass
+        """Write a directory entry"""
 
     @abc.abstractmethod
     def write_file(self, path: str, st: StatInfo, reader) -> None:
-        pass
+        """Write a file entry"""
 
     @abc.abstractmethod
     def write_symlink(self, path: str, st: StatInfo, linkname: str) -> None:
-        pass
+        """Write a symlink"""
 
     @abc.abstractmethod
     def write_other(self, path: str, st: StatInfo) -> None:
-        pass
+        """Write any other type of a file. Use st.mode to further differentiate"""
 
 
 class DiffOutput(OutputBackend):
+    """
+    Interface used to write diff output to an arbitrary backend. Adds the
+    `delete_marker` method to the existing OutputBackend interface.
+    """
+
     @abc.abstractmethod
     def delete_marker(self, path: str) -> None:
-        pass
+        """Create a deletion marker at `path`"""
 
 
 class DiffOutputForwarding(DiffOutput):  # pylint: disable=abstract-method
+    """
+    DiffOutput partial implementation that forwards all of the OutputBackend
+    methods to a chained backend. A subclass needs to only implement
+    `delete_marker` to complete the implementation.
+    """
+
     def __init__(self, backend: OutputBackend) -> None:
         self.backend = backend
 
@@ -50,6 +65,11 @@ class DiffOutputForwarding(DiffOutput):  # pylint: disable=abstract-method
 
 
 class DiffOutputDryRun(DiffOutput):
+    """
+    Simple DiffOutput concrete implementation that simply logs all write
+    and deletion marker calls.
+    """
+
     def delete_marker(self, path: str) -> None:
         print(f"delete {repr(path)}")
 

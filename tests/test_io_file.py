@@ -1,13 +1,11 @@
 import io
 import os
 import stat
-import tempfile
 
 import pytest
 
 from dirdiff.filelib import DirectoryManager, StatInfo
 from dirdiff.osshim import major, makedev, minor
-from dirdiff.output_file import OutputBackendFile
 
 # pylint: disable=redefined-outer-name
 
@@ -36,22 +34,12 @@ def stat_with_defaults(
     mtime: int = 0,
     rdev: int = 0,
 ) -> StatInfo:
+    """Helper to generate a stat entry with defaults"""
     return StatInfo(mode, uid, gid, size, mtime, rdev)
 
 
-@pytest.fixture
-def file_backend():
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        yield OutputBackendFile(tmp_dir)
-
-
-@pytest.fixture
-def file_backend_preserve():
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        yield OutputBackendFile(tmp_dir, preserve_owners=True)
-
-
 def test_file_write_dir(file_backend):
+    """Test writing a directory than reading the directory"""
     mode = 0o755 | stat.S_IFDIR
     file_name = "my-dir"
     st = stat_with_defaults(mode=mode)
@@ -70,6 +58,7 @@ def test_file_write_dir(file_backend):
 
 
 def test_file_write_reg(file_backend):
+    """Test writing a regular file than reading the regular file"""
     mode = 0o644 | stat.S_IFREG
     data = b"Hello dirdiff!"
     file_name = "my-file"
@@ -92,6 +81,7 @@ def test_file_write_reg(file_backend):
 
 
 def test_file_write_link(file_backend):
+    """Test writing a file and a symlink pointing to it then reading the same"""
     mode = 0o644 | stat.S_IFREG
     data = b"Hello dirdiff!"
     file_name = "my-file"
@@ -135,6 +125,7 @@ def test_file_write_link(file_backend):
     ],
 )
 def test_file_write_device(ftype, file_backend):
+    """Test writing a character/block device and accessing"""
     mode = 0o600 | ftype
     file_name = "my-dev"
     dev_major = 12
@@ -162,6 +153,7 @@ def test_file_write_device(ftype, file_backend):
 @pytest.mark.cap
 @pytest.mark.cap_chown
 def test_file_write_chown(file_backend_preserve):
+    """Test ownership preservation with a regular file"""
     mode = 0o644 | stat.S_IFREG
     data = b"Hello dirdiff!"
     file_name = "my-file"
@@ -198,6 +190,7 @@ def test_file_write_chown(file_backend_preserve):
     ],
 )
 def test_file_write_sock(ftype, file_backend):
+    """Test writing a socket and accessing the socket"""
     mode = 0o600 | ftype
     file_name = "my-sock"
 

@@ -18,6 +18,7 @@ try:
 except ImportError:
 
     def makedev(major: int, minor: int, /) -> int:
+        """Replacement implementation for makedev when not available"""
         return major << 8 | minor
 
 
@@ -26,6 +27,7 @@ try:
 except ImportError:
 
     def major(dev: int, /) -> int:
+        """Replacement implementation for major when not available"""
         return dev >> 8
 
 
@@ -34,4 +36,5 @@ try:
 except ImportError:
 
     def minor(dev: int, /) -> int:
+        """Replacement implementation for minor when not available"""
         return dev & 0xFF

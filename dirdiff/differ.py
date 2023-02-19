@@ -39,12 +39,15 @@ OPERAND_LOWER = "lower"
 
 
 class DirEntryType(Enum):
+    """Simple enum of basic file type categories"""
+
     DIRECTORY = 1
     REGULAR_FILE = 2
     OTHER = 3
 
 
 def _dir_entry_type(dir_entry: os.DirEntry) -> DirEntryType:
+    """Compute the high level file type from a dir entry"""
     if dir_entry.is_dir(follow_symlinks=False):
         return DirEntryType.DIRECTORY
     if dir_entry.is_file(follow_symlinks=False):
@@ -54,6 +57,8 @@ def _dir_entry_type(dir_entry: os.DirEntry) -> DirEntryType:
 
 @dataclasses.dataclass
 class DifferOptions:
+    """Dataclass containing options to control diff behavior"""
+
     output_uid: Optional[int] = None
     output_gid: Optional[int] = None
     scrub_mtime: bool = True
@@ -118,6 +123,20 @@ def _new_stack(func):
 
 
 class Differ:
+    """
+    Class responsible for performing the complete recursive directory difference
+    on the merged and lower direcotires. The merged_dir/lower_dir arguments must
+    either be a path-like pointer to an existing directory or a TarFile object.
+
+    Parameters:
+        merged_dir: This is the left-hand side of the directory difference. This
+            can be a path-like object or a tar archive.
+        lower_dir: This is the right-hand side of the directory difference. This
+            can be a path-like object or a tar archive.
+        output: This is a DiffOutput instance that actually writes diff results
+        options: Additional options that govern diff output and handling of errors
+    """
+
     def __init__(
         self,
         merged_dir: DifferPathLike,
@@ -135,6 +154,11 @@ class Differ:
 
     @_new_stack
     def diff(self) -> None:
+        """
+        Main diff entrypoint that starts the diff of the merged and lower directories/archives.
+
+        Any failures not ignored by the differ options will raised as a DirDiffException.
+        """
         try:
             merged = self._cur_stack.enter_context(_open_dir(self.merged_dir))
         except IOErrors as exc:
@@ -150,6 +174,12 @@ class Differ:
         self._diff_dirs(".", merged, lower)
 
     def _input_error(self, operand: str, path: str, verb: str) -> None:
+        """
+        Handle an input error.
+
+        Either propagates the error or simply logs it depending on the
+        error handler settings.
+        """
         _, exc, _ = sys.exc_info()
         if exc is not None:
             msg = f"error {verb} path={path!r} of {operand}: {exc}"
@@ -160,6 +190,12 @@ class Differ:
         LOGGER.warning("ignoring %s", msg)
 
     def _output_error(self, path: str, verb: str) -> None:
+        """
+        Handle an output error.
+
+        Either propagates the error or simply logs it depending on the
+        error handler settings.
+        """
         _, exc, _ = sys.exc_info()
         if exc is not None:
             msg = f"error {verb} path={path!r}: {exc}"
@@ -170,9 +206,11 @@ class Differ:
         LOGGER.warning("ignoring %s", msg)
 
     def _input_error_merged(self, path: str, verb: str) -> None:
+        """Handle an input error reading from the merged directory"""
         self._input_error(OPERAND_MERGED, path, verb)
 
     def _input_error_lower(self, path: str, verb: str) -> None:
+        """Handle an input error reading from the lower directory"""
         self._input_error(OPERAND_LOWER, path, verb)
 
     @_new_stack
@@ -182,6 +220,9 @@ class Differ:
         merged: DirectoryManager,
         lower: DirectoryManager,
     ) -> None:
+        """
+        Helper method for recursively diffing two directories in the merged and lower
+        """
         stack = self._cur_stack
         LOGGER.debug("Diffing dirs %s", archive_path)
 
@@ -267,6 +308,7 @@ class Differ:
         merged: FileManager,
         lower: FileManager,
     ) -> None:
+        """Helper method for diffing two regular files in the merged and lower"""
         stack = self._cur_stack
         LOGGER.debug("Diffing files %s", archive_path)
 
@@ -334,6 +376,13 @@ class Differ:
         merged: PathManager,
         lower: PathManager,
     ) -> None:
+        """
+        Helper method for diffing two special files in the merged and lower.
+
+        "Special" in this case means anything that's not either a directory or
+        a regular file. The files may not have the same file modes so this method
+        is responsible for checking that as well.
+        """
         stack = self._cur_stack
         LOGGER.debug("Diffing other %s", archive_path)
 
@@ -364,6 +413,12 @@ class Differ:
         self._insert_other(archive_path, merged)
 
     def _flush_pending(self) -> None:
+        """
+        Flush any pending directory entries to the output. We do this before
+        writing any other entries into an archive to ensure its parents have
+        been written first. We delay writting the parents because if their are
+        no differences in its children we can omit writing an entry for it at all.
+        """
         for archive_path, dir_stat in self._dir_pending:
             LOGGER.debug("Inserting directory metadata %s", archive_path)
             try:
@@ -378,6 +433,7 @@ class Differ:
         archive_path: str,
         obj: DirectoryManager,
     ) -> None:
+        """Recursively write a directory to our outout"""
         stack = self._cur_stack
         self._flush_pending()
         LOGGER.debug("Recursively inserting directory %s", archive_path)
@@ -410,6 +466,7 @@ class Differ:
         archive_path: str,
         obj: FileManager,
     ) -> None:
+        """Write a file to our outout"""
         stack = self._cur_stack
         self._flush_pending()
         LOGGER.debug("Inserting file %s", archive_path)
@@ -436,6 +493,7 @@ class Differ:
         archive_path: str,
         obj: PathManager,
     ) -> None:
+        """Write any other special file type to our outout"""
         stack = self._cur_stack
         self._flush_pending()
         LOGGER.debug("Inserting other %s", archive_path)

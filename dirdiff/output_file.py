@@ -10,6 +10,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OutputBackendFile(OutputBackend):
+    """
+    Backend implementation for writing diff output directly to the file system.
+    """
+
     SUPPORTS_PRESERVE_OWNERS = hasattr(os, "lchown") and hasattr(os, "fchown")
 
     def __init__(self, base_path: str, *, preserve_owners=False) -> None:

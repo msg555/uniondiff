@@ -24,10 +24,6 @@ enable = [
 ]
 
 disable = [
-    # TODO: Re-enable
-    "missing-class-docstring",
-    "missing-function-docstring",
-
     "attribute-defined-outside-init",
     "duplicate-code",
     "invalid-name",

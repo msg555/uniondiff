@@ -21,10 +21,12 @@ def stat_with_defaults(
     mtime: int = 0,
     rdev: int = 0,
 ) -> StatInfo:
+    """Helper to generate a stat entry with defaults"""
     return StatInfo(mode, uid, gid, size, mtime, rdev)
 
 
 def test_file_write_dir():
+    """Test writing a directory than reading the directory from archive"""
     mode = 0o755 | stat.S_IFDIR
     file_name = "my-dir"
     st = stat_with_defaults(mode=mode)
@@ -53,6 +55,7 @@ def test_file_write_dir():
 
 
 def test_file_write_reg():
+    """Test writing a regular file than reading the regular file from archive"""
     mode = 0o644 | stat.S_IFREG
     file_data = b"Hello dirdiff!"
     file_name = "my-file"
@@ -87,6 +90,7 @@ def test_file_write_reg():
 
 
 def test_file_write_link():
+    """Test writing a file and a symlink pointing to it then reading the same from archive"""
     mode = 0o644 | stat.S_IFREG
     file_data = b"Hello dirdiff!"
     file_name = "my-file"
@@ -131,6 +135,7 @@ def test_file_write_link():
     ],
 )
 def test_file_write_device(ftype, attest):
+    """Test writing a character/block device and accessing from archive"""
     mode = 0o600 | ftype
     file_name = "my-char"
     dev_major = 12

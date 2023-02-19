@@ -23,6 +23,10 @@ DIFF_CLASSES = {
 
 
 def parse_args(args=None) -> argparse.Namespace:
+    """
+    Parse command line or passed arguments return the parsed namespace object
+    as given from the argparse module.
+    """
     parser = argparse.ArgumentParser(
         description="Computes the directory difference `upper = merged - lower`"
     )
@@ -38,6 +42,8 @@ def parse_args(args=None) -> argparse.Namespace:
         "--diff-type",
         default="overlay",
         choices=DIFF_CLASSES,
+        help="Selects the kind of diff to perform. "
+        "Mostly this affects how deletions are represented.",
     )
     parser.add_argument(
         "--output-type",
@@ -117,6 +123,7 @@ def parse_args(args=None) -> argparse.Namespace:
 
 
 def setup_logging(verbose: int) -> None:
+    """Set our logging level and format based on verbosity level"""
     log_level = logging.ERROR
     log_format = "%(message)s"
     if verbose > 2:
@@ -186,6 +193,7 @@ def _get_backend(
 
 
 def main(args=None) -> int:
+    """Main CLI entrypoint, optionally using passed arguments rather than sys.argv"""
     args = parse_args(args=args)
     setup_logging(1 + args.verbose - args.quiet)
 

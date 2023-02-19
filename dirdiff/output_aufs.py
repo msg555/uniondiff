@@ -2,6 +2,7 @@ import io
 import logging
 import stat
 
+from dirdiff.exceptions import DirDiffOutputException
 from dirdiff.osshim import posix_basename, posix_join, posix_split
 from dirdiff.output import DiffOutputForwarding, OutputBackend, StatInfo
 
@@ -9,6 +10,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 class DiffOutputAufs(DiffOutputForwarding):
+    """
+    Output forwarder that converts deletion markers into AUFS-style
+    whiteout markers.
+    """
+
     WHITEOUT_PREFIX = ".wh."
 
     def __init__(self, backend: OutputBackend) -> None:
@@ -18,9 +24,14 @@ class DiffOutputAufs(DiffOutputForwarding):
 
     @classmethod
     def is_whiteout_path(cls, path: str) -> bool:
+        """Check if a path looks like a whiteout file"""
         return posix_basename(path).startswith(cls.WHITEOUT_PREFIX)
 
     def delete_marker(self, path: str) -> None:
+        """
+        Convert a deletion into whiteout by adding the prefix ".wh." to the
+        file's name.
+        """
         head, tail = posix_split(path)
         self.backend.write_file(
             posix_join(head, self.WHITEOUT_PREFIX + tail),
@@ -36,7 +47,12 @@ class DiffOutputAufs(DiffOutputForwarding):
         )
 
     def write_file(self, path: str, st: StatInfo, reader) -> None:
+        """
+        Forward most file writes but raise an exception if we try to write a
+        file that would be interpretted as a deletion.
+        """
         if self.is_whiteout_path(path):
-            LOGGER.warning("Refusing to write spurious whiteout path %s", path)
-            return
+            raise DirDiffOutputException(
+                f"Refusing to write spurious whiteout path {path!r}"
+            )
         super().write_file(path, st, reader)
