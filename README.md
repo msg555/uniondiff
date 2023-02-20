@@ -26,7 +26,7 @@ operands.
 CLI utility and the *uniondiff* Python library.
 
 ```sh
-pip install tplbuild
+pip install uniondiff
 ```
 
 *uniondiff* is supported and tested on Python 3.8-3.10
