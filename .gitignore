@@ -6,4 +6,4 @@ test-basic
 .coverage
 *.pypi-token.gpg
 dist
-dirdiff.egg-info
+*.egg-info

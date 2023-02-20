@@ -8,22 +8,22 @@ from contextlib import ExitStack
 from enum import Enum
 from typing import List, Optional, Tuple, Union
 
-from dirdiff.exceptions import (
-    DirDiffException,
-    DirDiffInputException,
-    DirDiffIOException,
-    DirDiffOutputException,
+from uniondiff.exceptions import (
+    UnionDiffException,
+    UnionDiffInputException,
+    UnionDiffIOException,
+    UnionDiffOutputException,
 )
-from dirdiff.filelib import DirectoryManager, FileManager, PathManager
-from dirdiff.filelib_tar import TarDirectoryManager, TarFileLoader
-from dirdiff.osshim import posix_join
-from dirdiff.output import DiffOutput, StatInfo
+from uniondiff.filelib import DirectoryManager, FileManager, PathManager
+from uniondiff.filelib_tar import TarDirectoryManager, TarFileLoader
+from uniondiff.osshim import posix_join
+from uniondiff.output import DiffOutput, StatInfo
 
 LOGGER = logging.getLogger(__name__)
 
 DifferPathLike = Union[str, bytes, os.PathLike, tarfile.TarFile]
 
-IOErrors = (OSError, tarfile.TarError, DirDiffIOException)
+IOErrors = (OSError, tarfile.TarError, UnionDiffIOException)
 
 FAILED_STAT = StatInfo(
     mode=0o777,
@@ -157,18 +157,18 @@ class Differ:
         """
         Main diff entrypoint that starts the diff of the merged and lower directories/archives.
 
-        Any failures not ignored by the differ options will raised as a DirDiffException.
+        Any failures not ignored by the differ options will raised as a UnionDiffException.
         """
         try:
             merged = self._cur_stack.enter_context(_open_dir(self.merged_dir))
         except IOErrors as exc:
-            raise DirDiffException(
+            raise UnionDiffException(
                 f"Failed to open merged path {self.merged_dir!r}: {exc}"
             ) from exc
         try:
             lower = self._cur_stack.enter_context(_open_dir(self.lower_dir))
         except IOErrors as exc:
-            raise DirDiffException(
+            raise UnionDiffException(
                 f"Failed to open lower path {self.lower_dir!r}: {exc}"
             ) from exc
         self._diff_dirs(".", merged, lower)
@@ -186,7 +186,7 @@ class Differ:
         else:
             msg = f"error {verb} path={path!r} of {operand}"
         if self.options.input_error_strict:
-            raise DirDiffInputException(msg) from exc
+            raise UnionDiffInputException(msg) from exc
         LOGGER.warning("ignoring %s", msg)
 
     def _output_error(self, path: str, verb: str) -> None:
@@ -202,7 +202,7 @@ class Differ:
         else:
             msg = f"error {verb} path={path!r}"
         if self.options.output_error_strict:
-            raise DirDiffOutputException(msg) from exc
+            raise UnionDiffOutputException(msg) from exc
         LOGGER.warning("ignoring %s", msg)
 
     def _input_error_merged(self, path: str, verb: str) -> None:

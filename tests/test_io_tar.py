@@ -4,10 +4,10 @@ import tarfile
 
 import pytest
 
-from dirdiff.filelib import StatInfo
-from dirdiff.filelib_tar import TarDirectoryManager, TarFileLoader
-from dirdiff.osshim import major, makedev, minor, posix_join
-from dirdiff.output_tar import OutputBackendTarfile
+from uniondiff.filelib import StatInfo
+from uniondiff.filelib_tar import TarDirectoryManager, TarFileLoader
+from uniondiff.osshim import major, makedev, minor, posix_join
+from uniondiff.output_tar import OutputBackendTarfile
 
 DEFAULT_UID = 1234
 DEFAULT_GID = 4567
@@ -57,7 +57,7 @@ def test_file_write_dir():
 def test_file_write_reg():
     """Test writing a regular file than reading the regular file from archive"""
     mode = 0o644 | stat.S_IFREG
-    file_data = b"Hello dirdiff!"
+    file_data = b"Hello uniondiff!"
     file_name = "my-file"
     st = stat_with_defaults(mode=mode, size=len(file_data))
 
@@ -92,7 +92,7 @@ def test_file_write_reg():
 def test_file_write_link():
     """Test writing a file and a symlink pointing to it then reading the same from archive"""
     mode = 0o644 | stat.S_IFREG
-    file_data = b"Hello dirdiff!"
+    file_data = b"Hello uniondiff!"
     file_name = "my-file"
     st = stat_with_defaults(mode=mode, size=len(file_data))
 

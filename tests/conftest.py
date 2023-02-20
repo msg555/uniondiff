@@ -2,7 +2,7 @@ import tempfile
 
 import pytest
 
-from dirdiff.output_file import OutputBackendFile
+from uniondiff.output_file import OutputBackendFile
 
 
 @pytest.fixture

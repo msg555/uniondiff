@@ -3,7 +3,7 @@ import os
 import tarfile
 import tempfile
 
-from dirdiff.cli import main
+from uniondiff.cli import main
 
 
 def tar_summarize(tf: tarfile.TarFile):

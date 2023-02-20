@@ -4,8 +4,8 @@ import stat
 
 import pytest
 
-from dirdiff.filelib import DirectoryManager, StatInfo
-from dirdiff.osshim import major, makedev, minor
+from uniondiff.filelib import DirectoryManager, StatInfo
+from uniondiff.osshim import major, makedev, minor
 
 # pylint: disable=redefined-outer-name
 
@@ -60,7 +60,7 @@ def test_file_write_dir(file_backend):
 def test_file_write_reg(file_backend):
     """Test writing a regular file than reading the regular file"""
     mode = 0o644 | stat.S_IFREG
-    data = b"Hello dirdiff!"
+    data = b"Hello uniondiff!"
     file_name = "my-file"
 
     st = stat_with_defaults(mode=mode, size=len(data))
@@ -83,7 +83,7 @@ def test_file_write_reg(file_backend):
 def test_file_write_link(file_backend):
     """Test writing a file and a symlink pointing to it then reading the same"""
     mode = 0o644 | stat.S_IFREG
-    data = b"Hello dirdiff!"
+    data = b"Hello uniondiff!"
     file_name = "my-file"
 
     st = stat_with_defaults(mode=mode, size=len(data))
@@ -155,7 +155,7 @@ def test_file_write_device(ftype, file_backend):
 def test_file_write_chown(file_backend_preserve):
     """Test ownership preservation with a regular file"""
     mode = 0o644 | stat.S_IFREG
-    data = b"Hello dirdiff!"
+    data = b"Hello uniondiff!"
     file_name = "my-file"
     uid = 123
     gid = 543

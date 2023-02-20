@@ -3,7 +3,7 @@ PYTHON ?= python3
 PLATFORM ?= linux/amd64
 PROFILE ?= dev
 IMAGE_BUILDER ?= docker
-IMAGE_NAME ?= msg555/dirdiff
+IMAGE_NAME ?= msg555/uniondiff
 
 all: format lint test docs
 
@@ -16,25 +16,25 @@ format-check:
 	$(PYTHON) -m isort --profile=black --check .
 
 pylint:
-	$(PYTHON) -m pylint dirdiff tests
+	$(PYTHON) -m pylint uniondiff tests
 
 typecheck:
-	$(PYTHON) -m mypy dirdiff tests
+	$(PYTHON) -m mypy uniondiff tests
 
 lint: format-check pylint typecheck
 
 test:
 ifeq ($(OS),Windows_NT)
-	$(PYTHON) -m pytest -sv --cov=dirdiff -m 'not cap and not unix' tests
+	$(PYTHON) -m pytest -sv --cov=uniondiff -m 'not cap and not unix' tests
 else
-	$(PYTHON) -m pytest -sv --cov=dirdiff -m 'not cap' tests
+	$(PYTHON) -m pytest -sv --cov=uniondiff -m 'not cap' tests
 endif
 
 test-all:
 ifeq ($(OS),Windows_NT)
-	$(PYTHON) -m pytest -sv --cov=dirdiff -m 'not unix' tests
+	$(PYTHON) -m pytest -sv --cov=uniondiff -m 'not unix' tests
 else
-	$(PYTHON) -m pytest -sv --cov=dirdiff -m '' tests
+	$(PYTHON) -m pytest -sv --cov=uniondiff -m '' tests
 endif
 
 build:
@@ -47,7 +47,7 @@ image:
 	$(IMAGE_BUILDER) build -t $(IMAGE_NAME) .
 
 image-%: image
-	docker run --rm -v "$${PWD}:/dirdiff" $(IMAGE_NAME) make $*
+	docker run --rm -v "$${PWD}:/uniondiff" $(IMAGE_NAME) make $*
 
 pypi-test: build
 	TWINE_USERNAME=__token__ TWINE_PASSWORD="$(shell gpg -d test.pypi-token.gpg)" \

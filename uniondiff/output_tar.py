@@ -3,9 +3,9 @@ import stat
 import tarfile
 from tarfile import TarFile, TarInfo
 
-from dirdiff.exceptions import DirDiffOutputException
-from dirdiff.osshim import major, minor, posix_join
-from dirdiff.output import OutputBackend, StatInfo
+from uniondiff.exceptions import UnionDiffOutputException
+from uniondiff.osshim import major, minor, posix_join
+from uniondiff.output import OutputBackend, StatInfo
 
 LOGGER = logging.getLogger(__name__)
 
@@ -68,6 +68,6 @@ class OutputBackendTarfile(OutputBackend):
         elif stat.S_ISFIFO(st.mode):
             ti.type = tarfile.FIFOTYPE
         else:
-            raise DirDiffOutputException("file type not supported by tar archives")
+            raise UnionDiffOutputException("file type not supported by tar archives")
 
         self.tf.addfile(ti)

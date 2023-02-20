@@ -1,8 +1,8 @@
 import logging
 import stat
 
-from dirdiff.exceptions import DirDiffOutputException
-from dirdiff.output import DiffOutputForwarding, OutputBackend, StatInfo
+from uniondiff.exceptions import UnionDiffOutputException
+from uniondiff.output import DiffOutputForwarding, OutputBackend, StatInfo
 
 LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class DiffOutputOverlay(DiffOutputForwarding):
         character device that would be interpretted as a deletion.
         """
         if stat.S_ISCHR(st.mode) and st.rdev == 0:
-            raise DirDiffOutputException(
+            raise UnionDiffOutputException(
                 f"Refusing to write spurious whiteout character device at {path!r}"
             )
         super().write_other(path, st)

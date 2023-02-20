@@ -1,6 +1,6 @@
-class DirDiffException(Exception):
+class UnionDiffException(Exception):
     """
-    Generic base exception for any expected failure in dirdiff. If the exception
+    Generic base exception for any expected failure in uniondiff. If the exception
     raises to the top level the CLI will simply print the exception message and
     exit with the passed exit_code.
     """
@@ -10,13 +10,13 @@ class DirDiffException(Exception):
         self.exit_code = exit_code
 
 
-class DirDiffIOException(DirDiffException):
+class UnionDiffIOException(UnionDiffException):
     """Any exception relating to an I/O failure"""
 
 
-class DirDiffInputException(DirDiffIOException):
+class UnionDiffInputException(UnionDiffIOException):
     """An input error exception"""
 
 
-class DirDiffOutputException(DirDiffIOException):
+class UnionDiffOutputException(UnionDiffIOException):
     """An output error exception"""

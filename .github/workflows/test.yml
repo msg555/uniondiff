@@ -1,4 +1,4 @@
-name: dirdiff
+name: uniondiff
 on:
   push:
     branches:

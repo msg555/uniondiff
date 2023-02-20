@@ -6,8 +6,8 @@ import tarfile
 from tarfile import TarFile, TarInfo
 from typing import Iterator
 
-from dirdiff.filelib import StatInfo
-from dirdiff.osshim import makedev, posix_join, posix_norm, posix_split
+from uniondiff.filelib import StatInfo
+from uniondiff.osshim import makedev, posix_join, posix_norm, posix_split
 
 _MODE_MAPPING = {
     tarfile.REGTYPE: stat.S_IFREG,

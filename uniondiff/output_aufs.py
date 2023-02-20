@@ -2,9 +2,9 @@ import io
 import logging
 import stat
 
-from dirdiff.exceptions import DirDiffOutputException
-from dirdiff.osshim import posix_basename, posix_join, posix_split
-from dirdiff.output import DiffOutputForwarding, OutputBackend, StatInfo
+from uniondiff.exceptions import UnionDiffOutputException
+from uniondiff.osshim import posix_basename, posix_join, posix_split
+from uniondiff.output import DiffOutputForwarding, OutputBackend, StatInfo
 
 LOGGER = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class DiffOutputAufs(DiffOutputForwarding):
         file that would be interpretted as a deletion.
         """
         if self.is_whiteout_path(path):
-            raise DirDiffOutputException(
+            raise UnionDiffOutputException(
                 f"Refusing to write spurious whiteout path {path!r}"
             )
         super().write_file(path, st, reader)

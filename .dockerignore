@@ -1,5 +1,5 @@
 *
-!dirdiff
+!uniondiff
 !tests
 !requirements*
 !setup.cfg

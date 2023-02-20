@@ -6,13 +6,13 @@ import tarfile
 from contextlib import ExitStack
 from typing import Union
 
-from dirdiff.differ import Differ, DifferOptions
-from dirdiff.exceptions import DirDiffException
-from dirdiff.output import DiffOutput, DiffOutputDryRun, OutputBackend
-from dirdiff.output_aufs import DiffOutputAufs
-from dirdiff.output_file import OutputBackendFile
-from dirdiff.output_overlay import DiffOutputOverlay
-from dirdiff.output_tar import OutputBackendTarfile
+from uniondiff.differ import Differ, DifferOptions
+from uniondiff.exceptions import UnionDiffException
+from uniondiff.output import DiffOutput, DiffOutputDryRun, OutputBackend
+from uniondiff.output_aufs import DiffOutputAufs
+from uniondiff.output_file import OutputBackendFile
+from uniondiff.output_overlay import DiffOutputOverlay
+from uniondiff.output_tar import OutputBackendTarfile
 
 LOGGER = logging.getLogger(__name__)
 
@@ -153,9 +153,9 @@ def _get_input_dir(
     try:
         return stack.enter_context(tarfile.open(path, mode="r"))
     except FileNotFoundError as exc:
-        raise DirDiffException(f"Input path {repr(path)} does not exist") from exc
+        raise UnionDiffException(f"Input path {repr(path)} does not exist") from exc
     except (OSError, tarfile.TarError) as exc:
-        raise DirDiffException(
+        raise UnionDiffException(
             f"Failed to open input file {repr(path)}: {exc}"
         ) from exc
 
@@ -170,7 +170,7 @@ def _get_backend(
             tf = stack.enter_context(tarfile.open(output, mode=tar_mode))
         else:
             if not force and sys.stdout.isatty():
-                raise DirDiffException("Refusing to write tar file to terminal")
+                raise UnionDiffException("Refusing to write tar file to terminal")
             tf = stack.enter_context(
                 tarfile.open(mode=tar_mode, fileobj=sys.stdout.buffer)
             )
@@ -181,12 +181,12 @@ def _get_backend(
     assert output_type == "file"
 
     if not output:
-        raise DirDiffException(
+        raise UnionDiffException(
             "--output file path must be provided with 'file' output type"
         )
 
     if not force and os.path.exists(output):
-        raise DirDiffException("output path already exists")
+        raise UnionDiffException("output path already exists")
 
     os.umask(0)
     return OutputBackendFile(output, preserve_owners=preserve_owners)

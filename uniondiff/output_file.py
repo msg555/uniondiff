@@ -3,8 +3,8 @@ import os
 import socket
 import stat
 
-from dirdiff.exceptions import DirDiffOutputException
-from dirdiff.output import OutputBackend, StatInfo
+from uniondiff.exceptions import UnionDiffOutputException
+from uniondiff.output import OutputBackend, StatInfo
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class OutputBackendFile(OutputBackend):
             else:
                 os.fchown(fd, st.uid, st.gid)
         except OSError as exc:
-            raise DirDiffOutputException(f"failed to chown object: {exc}") from exc
+            raise UnionDiffOutputException(f"failed to chown object: {exc}") from exc
 
     def write_dir(self, path: str, st: StatInfo) -> None:
         full_path = self._full_path(path)
@@ -71,6 +71,6 @@ class OutputBackendFile(OutputBackend):
             sock.close()
             os.chmod(full_path, stat.S_IMODE(st.mode))
         else:
-            raise DirDiffOutputException("Unsupported file type")
+            raise UnionDiffOutputException("Unsupported file type")
 
         self._fixup_owners(full_path, st)

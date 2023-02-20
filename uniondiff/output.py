@@ -2,8 +2,8 @@ import abc
 import logging
 import stat
 
-from dirdiff.filelib import StatInfo
-from dirdiff.osshim import major, minor
+from uniondiff.filelib import StatInfo
+from uniondiff.osshim import major, minor
 
 LOGGER = logging.getLogger(__name__)
 

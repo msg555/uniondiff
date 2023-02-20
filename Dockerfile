@@ -1,7 +1,7 @@
 FROM python:3.8
 
-ENV PYTHONPATH=/dirdiff
-WORKDIR /dirdiff
+ENV PYTHONPATH=/uniondiff
+WORKDIR /uniondiff
 
 COPY requirements* ./
 
