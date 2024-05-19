@@ -2,13 +2,13 @@ name: uniondiff
 on:
   push:
     branches:
-      - main
+      - "**"
 jobs:
   python-versions:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -34,7 +34,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: 3.12
     - name: Install dev deps
       run: python -m pip install -r requirements-dev.txt
     - name: Test
