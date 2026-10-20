@@ -167,12 +167,12 @@ def _get_backend(
     if output_type in ("tar", "tgz"):
         tar_mode = "w|gz" if output_type == "tgz" else "w|"
         if output:
-            tf = stack.enter_context(tarfile.open(output, mode=tar_mode))
+            tf = stack.enter_context(tarfile.open(output, mode=tar_mode))  # type: ignore
         else:
             if not force and sys.stdout.isatty():
                 raise UnionDiffException("Refusing to write tar file to terminal")
             tf = stack.enter_context(
-                tarfile.open(mode=tar_mode, fileobj=sys.stdout.buffer)
+                tarfile.open(mode=tar_mode, fileobj=sys.stdout.buffer)  # type: ignore
             )
         if preserve_owners:
             LOGGER.warning("Ignoring flag --preserve-owners for archive output")

@@ -36,6 +36,7 @@ disable = [
     "too-many-return-statements",
     "too-many-instance-attributes",
     "too-many-arguments",
+    "too-many-positional-arguments",
     "consider-using-assignment-expr",
     # handled by black
     "format",

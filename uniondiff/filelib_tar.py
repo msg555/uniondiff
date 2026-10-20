@@ -89,7 +89,7 @@ class TarManagerBase:
             uid=self.ti.uid,
             gid=self.ti.gid,
             size=self.ti.size,
-            mtime=self.ti.mtime,
+            mtime=int(self.ti.mtime),
             rdev=rdev,
         )
 
