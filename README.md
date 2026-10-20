@@ -29,7 +29,7 @@ CLI utility and the *uniondiff* Python library.
 pip install uniondiff
 ```
 
-*uniondiff* is supported and tested on Python 3.8-3.12
+*uniondiff* is supported and tested on Python 3.11-3.15
 
 ## Examples
 
